@@ -146,7 +146,9 @@ namespace SaxonHECSharp.NativeInterop
 
         // Linux / macOS
         private const int RTLD_NOW = 2;
-        [DllImport("libdl")]
+
+        [DllImport("libdl.so.2", SetLastError = true)]
         private static extern IntPtr dlopen(string fileName, int flags);
+
     }
 }
