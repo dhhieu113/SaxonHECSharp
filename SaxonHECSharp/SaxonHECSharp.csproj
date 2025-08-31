@@ -1,27 +1,40 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFrameworks>netstandard2.0</TargetFrameworks>
-    <LangVersion>latest</LangVersion>
-    <Nullable>enable</Nullable>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    
-    <!-- Multi-platform support -->
-    <RuntimeIdentifiers>win-x64;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
-    
-    <!-- NuGet package properties -->
-    <PackageId>SaxonHECSharp</PackageId>
-    <Authors>dhhieu113</Authors>
-    <Description>C# bindings for Saxon-HE C/C++ (libsaxon-hec) with multi-platform support (Windows, Linux, macOS)</Description>
-    <RepositoryUrl>https://github.com/dhhieu113/SaxonHECSharp</RepositoryUrl>
-    
-    <!-- Native library properties -->
-    <IncludeBuildOutput>true</IncludeBuildOutput>
-    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-  </PropertyGroup>
-  
-  <ItemGroup>
-    <!-- Include native libraries in the NuGet package and copy to output directory on build -->
-    <None Include="runtimes/**/*" Pack="true" PackagePath="runtimes" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
+	<PropertyGroup>
+		<TargetFrameworks>netstandard2.0</TargetFrameworks>
+		<LangVersion>latest</LangVersion>
+		<Nullable>enable</Nullable>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+		<!-- Multi-platform support -->
+		<RuntimeIdentifiers>win-x64;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
+
+		<!-- NuGet package properties -->
+		<PackageId>SaxonHECSharp</PackageId>
+		<Authors>dhhieu113</Authors>
+		<Description>C# bindings for Saxon-HE C/C++ (libsaxon-hec) with multi-platform support (Windows, Linux, macOS)</Description>
+		<RepositoryUrl>https://github.com/dhhieu113/SaxonHECSharp</RepositoryUrl>
+
+		<!-- Native library properties -->
+		<IncludeBuildOutput>true</IncludeBuildOutput>
+		<SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+	</PropertyGroup>
+
+	<!-- Define platform-specific constants -->
+	<PropertyGroup Condition="'$(RuntimeIdentifier)'=='win-x64'">
+		<DefineConstants>WINDOWS</DefineConstants>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(RuntimeIdentifier)'=='osx-x64' Or '$(RuntimeIdentifier)'=='osx-arm64'">
+		<DefineConstants>OSX</DefineConstants>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(RuntimeIdentifier)'=='linux-x64' Or '$(RuntimeIdentifier)'=='linux-arm64'">
+		<DefineConstants>LINUX</DefineConstants>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Include native libraries in the NuGet package and copy to output directory on build -->
+		<None Include="runtimes/**/*" Pack="true" PackagePath="runtimes" CopyToOutputDirectory="PreserveNewest" />
+	</ItemGroup>
 </Project>

@@ -14,5 +14,16 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+	<PropertyGroup Condition="'$(RuntimeIdentifier)'=='win-x64'">
+		<DefineConstants>WINDOWS</DefineConstants>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(RuntimeIdentifier)'=='osx-x64' Or '$(RuntimeIdentifier)'=='osx-arm64'">
+		<DefineConstants>OSX</DefineConstants>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(RuntimeIdentifier)'=='linux-x64' Or '$(RuntimeIdentifier)'=='linux-arm64'">
+		<DefineConstants>LINUX</DefineConstants>
+	</PropertyGroup>
 
 </Project>

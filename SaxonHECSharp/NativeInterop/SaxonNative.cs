@@ -6,8 +6,14 @@ namespace SaxonHECSharp.NativeInterop
 {
     internal static class SaxonNative
     {
-        private const string CoreLibraryName = "saxonc-core-ee";
-        private const string LibraryName = "saxonc-ee";
+
+#if WINDOWS
+    private const string CoreLibraryName = "saxonc-core-ee";
+    private const string LibraryName = "saxonc-ee";
+#else
+        private const string CoreLibraryName = "libsaxonc-core";
+        private const string LibraryName = "libsaxonc-ee";
+#endif
 
         private static IntPtr _coreHandle;
         private static IntPtr _libraryHandle;
@@ -100,15 +106,15 @@ namespace SaxonHECSharp.NativeInterop
             string nativeDir = Path.Combine(baseDir, "runtimes", rid, "native");
 
             string candidate1 = Path.Combine(nativeDir, $"{libraryName}{GetExtension()}");
-            string candidate2 = Path.Combine(nativeDir, $"lib{libraryName}{GetExtension()}");
+            //string candidate2 = Path.Combine(nativeDir, $"lib{libraryName}{GetExtension()}");
 
             if (File.Exists(candidate1))
                 return LoadLibraryCrossPlatform(candidate1, nativeDir, libraryName);
 
-            if (File.Exists(candidate2))
-                return LoadLibraryCrossPlatform(candidate2, nativeDir, libraryName);
+            //if (File.Exists(candidate2))
+            //    return LoadLibraryCrossPlatform(candidate2, nativeDir, libraryName);
 
-            throw new DllNotFoundException($"Could not find native library {libraryName} in {nativeDir} for RID {rid}. Looked for {candidate1} and {candidate2}.");
+            throw new DllNotFoundException($"Could not find native library {libraryName} in {nativeDir} for RID {rid}. Looked for {candidate1}.");
         }
 
         private static string GetExtension()
