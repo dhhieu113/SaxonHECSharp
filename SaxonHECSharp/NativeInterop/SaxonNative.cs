@@ -20,9 +20,9 @@ namespace SaxonHECSharp.NativeInterop
                 _coreHandle = LoadLibraryFromRuntimes(CoreLibraryName);
                 if (_coreHandle == IntPtr.Zero)
                 {
-                    string err = GetLastErrorMessage();
+                    int err = Marshal.GetLastWin32Error();
                     throw new DllNotFoundException(
-                        $"Failed to load {CoreLibraryName} from runtimes folder. Native error: {err}"
+                        $"Failed to load {CoreLibraryName} from runtimes folder (error {err})"
                     );
                 }
 
@@ -30,9 +30,9 @@ namespace SaxonHECSharp.NativeInterop
                 _libraryHandle = LoadLibraryFromRuntimes(LibraryName);
                 if (_libraryHandle == IntPtr.Zero)
                 {
-                    string err = GetLastErrorMessage();
+                    int err = Marshal.GetLastWin32Error();
                     throw new DllNotFoundException(
-                        $"Failed to load {LibraryName} from runtimes folder. Native error: {err}"
+                        $"Failed to load {LibraryName} from runtimes folder (error {err})"
                     );
                 }
             }
@@ -94,21 +94,15 @@ namespace SaxonHECSharp.NativeInterop
         private static IntPtr LoadLibraryFromRuntimes(string libraryName)
         {
             string rid = GetRuntimeIdentifier();
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string nativeDir = Path.Combine(baseDir, "runtimes", rid, "native");
+            string path = Path.Combine(
+                AppDomain.CurrentDomain.BaseDirectory,
+                "runtimes",
+                rid,
+                "native",
+                GetLibraryFileName(libraryName)
+            );
 
-            // Try without lib prefix
-            string candidate1 = Path.Combine(nativeDir, $"{libraryName}{GetExtension()}");
-            // Try with lib prefix (Linux/macOS convention)
-            string candidate2 = Path.Combine(nativeDir, $"lib{libraryName}{GetExtension()}");
-
-            if (File.Exists(candidate1))
-                return LoadLibraryCrossPlatform(candidate1);
-
-            if (File.Exists(candidate2))
-                return LoadLibraryCrossPlatform(candidate2);
-
-            return IntPtr.Zero;
+            return LoadLibraryCrossPlatform(path);
         }
 
         private static string GetRuntimeIdentifier()
@@ -123,14 +117,14 @@ namespace SaxonHECSharp.NativeInterop
             throw new PlatformNotSupportedException("Unsupported platform");
         }
 
-        private static string GetExtension()
+        private static string GetLibraryFileName(string library)
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                return ".dll";
+                return $"{library}.dll";
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                return ".so";
+                return $"lib{library}.so";
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                return ".dylib";
+                return $"lib{library}.dylib";
 
             throw new PlatformNotSupportedException("Unsupported platform");
         }
@@ -138,49 +132,21 @@ namespace SaxonHECSharp.NativeInterop
         private static IntPtr LoadLibraryCrossPlatform(string path)
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                return LoadLibraryWindows(path);
-
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                return dlopen_linux(path, RTLD_NOW);
-
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                return dlopen_osx(path, RTLD_NOW);
+                return LoadLibrary(path);
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
+                RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                return dlopen(path, RTLD_NOW);
 
             throw new PlatformNotSupportedException();
         }
 
-        private static string GetLastErrorMessage()
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                return Marshal.GetLastWin32Error().ToString();
-
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                return Marshal.PtrToStringAnsi(dlerror_linux());
-
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                return Marshal.PtrToStringAnsi(dlerror_osx());
-
-            return "Unknown platform error";
-        }
-
         // Windows
         [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
-        private static extern IntPtr LoadLibraryWindows(string lpFileName);
+        private static extern IntPtr LoadLibrary(string lpFileName);
 
-        // Linux
+        // Linux / macOS
         private const int RTLD_NOW = 2;
-
-        [DllImport("libdl.so.2", EntryPoint = "dlopen", SetLastError = true)]
-        private static extern IntPtr dlopen_linux(string fileName, int flags);
-
-        [DllImport("libdl.so.2", EntryPoint = "dlerror")]
-        private static extern IntPtr dlerror_linux();
-
-        // macOS
-        [DllImport("libdl.dylib", EntryPoint = "dlopen", SetLastError = true)]
-        private static extern IntPtr dlopen_osx(string fileName, int flags);
-
-        [DllImport("libdl.dylib", EntryPoint = "dlerror")]
-        private static extern IntPtr dlerror_osx();
+        [DllImport("libdl")]
+        private static extern IntPtr dlopen(string fileName, int flags);
     }
 }
