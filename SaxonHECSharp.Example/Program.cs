@@ -1,5 +1,7 @@
-﻿using SaxonHECSharp;
-using SaxonHECSharp.Utils;
+﻿using System;
+using System.IO;
+using System.Threading.Tasks;
+using SaxonHECSharp;
 
 class Program
 {
@@ -17,33 +19,28 @@ class Program
             ("othello.xml", "identity.xsl", "othello_output.xml")
         };
 
-        // Allow command line arguments to override defaults
-        if (args.Length >= 2)
-        {
-            await RunTransform(args[0], args[1]);
-        }
-        else
-        {
-            // Run all test cases
-            Console.WriteLine("Running all test cases...\n");
-            foreach (var (xml, xsl, output) in testCases)
-            {
-                Console.WriteLine($"\nTesting transformation: {xml} with {xsl}");
-                await RunTransform(xml, xsl);
-            }
-        }
-
-        // Set up the native libraries in runtimes directory
-        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
         try
         {
-            await SaxonDownloader.DownloadAndSetupAsync(baseDir);
-            Console.WriteLine("Saxon libraries downloaded and set up successfully.\n");
+            // Allow command line arguments to override defaults
+            if (args.Length >= 2)
+            {
+                await RunTransform(args[0], args[1]);
+            }
+            else
+            {
+                // Run all test cases
+                Console.WriteLine("Running all test cases...\n");
+                foreach (var (xml, xsl, _) in testCases)
+                {
+                    Console.WriteLine($"\nTesting transformation: {xml} with {xsl}");
+                    await RunTransform(xml, xsl);
+                }
+            }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to set up Saxon libraries: {ex.Message}");
-            return;
+            Console.WriteLine($"Error: {ex.Message}");
+            Environment.Exit(1);
         }
     }
 
