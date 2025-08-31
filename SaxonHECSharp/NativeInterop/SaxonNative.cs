@@ -12,6 +12,9 @@ namespace SaxonHECSharp.NativeInterop
         private static IntPtr _coreHandle;
         private static IntPtr _libraryHandle;
 
+        private const string LinuxLib = "libdl.so.2";
+        private const string MacLib = "libdl.dylib";
+
         static SaxonNative()
         {
             try
@@ -142,9 +145,9 @@ namespace SaxonHECSharp.NativeInterop
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 return LoadLibrary(path);
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                return dlopen(path, RTLD_NOW);
+                return dlopen_linux(path, RTLD_NOW);
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                return dlopen(path, RTLD_NOW);
+                return dlopen_osx(path, RTLD_NOW);
 
             throw new PlatformNotSupportedException();
         }
@@ -156,10 +159,21 @@ namespace SaxonHECSharp.NativeInterop
 
         private const int RTLD_NOW = 2;
 
-        [DllImport("libdl.so.2")]
-        private static extern IntPtr dlopen(string fileName, int flags);
+        private static string GetLibDl()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                return "kernel32"; // Windows
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                return "libdl.so.2"; // Linux
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                return "/usr/lib/libSystem.dylib"; // macOS
+            throw new PlatformNotSupportedException();
+        }
 
-        [DllImport("libdl.so.2")]
-        private static extern IntPtr dlerror();
+        [DllImport("libSystem.dylib", EntryPoint = "dlopen")] // fallback for macOS
+        private static extern IntPtr dlopen_osx(string fileName, int flags);
+
+        [DllImport("libdl.so.2", EntryPoint = "dlopen")] // fallback for Linux
+        private static extern IntPtr dlopen_linux(string fileName, int flags);
     }
 }
