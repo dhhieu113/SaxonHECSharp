@@ -189,31 +189,11 @@ namespace SaxonHECSharp.NativeInterop
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                string versioned = Path.Combine(nativeDir, $"lib{libraryName}.12.8.0.dylib");
                 string soname = Path.Combine(nativeDir, $"lib{libraryName}.12.dylib");
-                try
-                {
-                    var ln = new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = "ln",
-                        Arguments = $"-s \"{versioned}\" \"{soname}\"",
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true
-                    };
-                    using var proc = System.Diagnostics.Process.Start(ln);
-                    proc.WaitForExit();
+                string versioned = Path.Combine(nativeDir, $"lib{libraryName}.12.8.0.dylib");
 
-                    if (proc.ExitCode != 0)
-                    {
-                        string error = proc.StandardError.ReadToEnd();
-                        Console.Error.WriteLine($"Failed to create symlink for {libraryName}: {error}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.Error.WriteLine($"Exception while creating symlink: {ex}");
-                }
+                Symlink(path, soname);
+                Symlink(soname, versioned);
 
                 dlerror_mac(); // Clear any existing error
                 handle = LoadLibraryMac(path, RTLD_NOW | RTLD_GLOBAL); // Try loading the exact path first
@@ -238,6 +218,34 @@ namespace SaxonHECSharp.NativeInterop
             }
 
             return handle;
+        }
+
+        private static void Symlink(string versioned, string soname)
+        {
+            try
+            {
+                var ln = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "ln",
+                    Arguments = $"-s \"{versioned}\" \"{soname}\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                using var proc = System.Diagnostics.Process.Start(ln);
+                proc.WaitForExit();
+
+                if (proc.ExitCode != 0)
+                {
+                    string error = proc.StandardError.ReadToEnd();
+                    Console.Error.WriteLine($"Failed to create symlink for {libraryName}: {error}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Exception while creating symlink: {ex}");
+            }
+
         }
 
         // Windows
