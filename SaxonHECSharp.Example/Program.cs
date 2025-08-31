@@ -52,13 +52,12 @@ class Program
             using var processor = new SaxonProcessor();
             var xsltProc = processor.CreateXsltProcessor();
 
-            // Get paths to test files
-            string projectDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
-            string testDataDir = Path.Combine(projectDir, "test-data");
-            string xsltPath = Path.Combine(testDataDir, xslFile);
-            string xmlPath = Path.Combine(testDataDir, xmlFile);
+            // Get paths to files
+            var baseDir = AppContext.BaseDirectory;
+            string xsltPath = Path.Combine(baseDir, xslFile);
+            string xmlPath = Path.Combine(baseDir, xmlFile);
             string outputName = Path.GetFileNameWithoutExtension(xmlFile) + "_output" + Path.GetExtension(xslFile);
-            string outputPath = Path.Combine(testDataDir, outputName);
+            string outputPath = Path.Combine(baseDir, outputName);
 
             Console.WriteLine($"Input XML: {xmlFile}");
             Console.WriteLine($"XSLT: {xslFile}");

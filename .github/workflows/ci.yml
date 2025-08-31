@@ -100,6 +100,31 @@ jobs:
 
     - name: Run Example Project
       working-directory: SaxonHECSharp.Example
+      shell: bash
+      run: |
+        # Ensure the native libraries have correct permissions on Unix-like systems
+        if [[ "${{ matrix.os }}" == "ubuntu-24.04" || "${{ matrix.os }}" == "macos-14" ]]; then
+          chmod +x bin/${{ matrix.configuration }}/net9.0/runtimes/*/native/*
+        fi
+        
+        # Copy test data to the output directory
+        cp -r test-data/* bin/${{ matrix.configuration }}/net9.0/
+        
+        # Run the example project
+        dotnet run --configuration ${{ matrix.configuration }} --no-build
+        
+        # Verify that at least one output file was generated
+        output_files=$(ls bin/${{ matrix.configuration }}/net9.0/*_output.{xml,html} 2>/dev/null | wc -l)
+        if [ "$output_files" -eq "0" ]; then
+          echo "Error: Example project did not generate any output files"
+          exit 1
+        else
+          echo "Success: Generated $output_files output files"
+          ls -l bin/${{ matrix.configuration }}/net9.0/*_output.{xml,html}
+        fi
+
+    - name: Run Example Project
+      working-directory: SaxonHECSharp.Example
       run: |
         dotnet build --configuration ${{ matrix.configuration }}
         dotnet run --configuration ${{ matrix.configuration }}

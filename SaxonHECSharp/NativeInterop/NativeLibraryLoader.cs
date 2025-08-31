@@ -28,12 +28,36 @@ namespace SaxonHECSharp.NativeInterop
         {
             lock (LoadLock)
             {
-                if (_libraryHandle != IntPtr.Zero && _coreLibraryHandle != IntPtr.Zero)
-                    return;
+                try
+                {
+                    if (_libraryHandle != IntPtr.Zero && _coreLibraryHandle != IntPtr.Zero)
+                        return;
 
-                var libraryPaths = GetLibraryPaths();
-                _coreLibraryHandle = LoadNativeLibrary(libraryPaths.CoreLibPath);
-                _libraryHandle = LoadNativeLibrary(libraryPaths.MainLibPath);
+                    var libraryPaths = GetLibraryPaths();
+                    
+                    // Load core library first
+                    _coreLibraryHandle = LoadNativeLibrary(libraryPaths.CoreLibPath);
+                    if (_coreLibraryHandle == IntPtr.Zero)
+                        throw new DllNotFoundException($"Failed to load core library: {libraryPaths.CoreLibPath}");
+                    
+                    // Then load main library
+                    _libraryHandle = LoadNativeLibrary(libraryPaths.MainLibPath);
+                    if (_libraryHandle == IntPtr.Zero)
+                        throw new DllNotFoundException($"Failed to load main library: {libraryPaths.MainLibPath}");
+                }
+                catch (Exception ex)
+                {
+                    // Clean up if either library failed to load
+                    if (_coreLibraryHandle != IntPtr.Zero)
+                        FreeLibrary(_coreLibraryHandle);
+                    if (_libraryHandle != IntPtr.Zero)
+                        FreeLibrary(_libraryHandle);
+                        
+                    _coreLibraryHandle = IntPtr.Zero;
+                    _libraryHandle = IntPtr.Zero;
+                    
+                    throw new DllNotFoundException($"Failed to load Saxon libraries: {ex.Message}", ex);
+                }
             }
         }
 
@@ -45,6 +69,32 @@ namespace SaxonHECSharp.NativeInterop
 
         [DllImport("libdl", EntryPoint = "dlerror")]
         private static extern IntPtr dlerror();
+
+        [DllImport("kernel32", SetLastError = true)]
+        private static extern bool FreeLibrary(IntPtr hModule);
+
+        [DllImport("libdl")]
+        private static extern int dlclose(IntPtr handle);
+
+        private static void FreeLibrary(IntPtr handle)
+        {
+            if (handle == IntPtr.Zero)
+                return;
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                if (!FreeLibrary(handle))
+                    throw new InvalidOperationException($"Failed to free library. Error: {Marshal.GetLastWin32Error()}");
+            }
+            else
+            {
+                if (dlclose(handle) != 0)
+                {
+                    var error = Marshal.PtrToStringAnsi(dlerror());
+                    throw new InvalidOperationException($"Failed to free library. Error: {error}");
+                }
+            }
+        }
 
         private static (string CoreLibPath, string MainLibPath) GetLibraryPaths()
         {
@@ -104,14 +154,36 @@ namespace SaxonHECSharp.NativeInterop
 
         private static string GetRuntimeIdentifier()
         {
+            var architecture = RuntimeInformation.ProcessArchitecture;
+            
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                if (architecture != Architecture.X64)
+                    throw new PlatformNotSupportedException($"Unsupported architecture on Windows: {architecture}. Only x64 is supported.");
                 return "win-x64";
+            }
+            
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "linux-arm64" : "linux-x64";
+            {
+                if (architecture == Architecture.Arm64)
+                    return "linux-arm64";
+                if (architecture == Architecture.X64)
+                    return "linux-x64";
+                throw new PlatformNotSupportedException($"Unsupported architecture on Linux: {architecture}. Supported: x64, arm64");
+            }
+            
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "osx-arm64" : "osx-x64";
+            {
+                if (architecture == Architecture.Arm64)
+                    return "osx-arm64";
+                if (architecture == Architecture.X64)
+                    return "osx-x64";
+                throw new PlatformNotSupportedException($"Unsupported architecture on macOS: {architecture}. Supported: x64, arm64");
+            }
 
-            throw new PlatformNotSupportedException($"Unsupported OS: {RuntimeInformation.OSDescription}");
+            throw new PlatformNotSupportedException(
+                $"Unsupported platform: OS={RuntimeInformation.OSDescription}, " +
+                $"Architecture={architecture}, OSVersion={Environment.OSVersion}");
         }
 
         private static string GetLibraryFileName(string libraryName)
