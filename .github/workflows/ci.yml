@@ -29,18 +29,6 @@ jobs:
       with:
         dotnet-version: '9.0.x'
 
-    - name: Setup Saxon Libraries
-      shell: pwsh
-      run: |
-        $librariesPath = Join-Path $env:GITHUB_WORKSPACE "SaxonHECSharp.Example/bin/${{ matrix.configuration }}/net9.0/runtimes"
-        dotnet run --project SaxonHECSharp.Example --configuration ${{ matrix.configuration }}
-        if (Test-Path $librariesPath) {
-          Write-Host "Saxon libraries successfully downloaded"
-        } else {
-          Write-Error "Failed to download Saxon libraries"
-          exit 1
-        }
-
     - name: Build
       run: dotnet build --configuration ${{ matrix.configuration }}
 
