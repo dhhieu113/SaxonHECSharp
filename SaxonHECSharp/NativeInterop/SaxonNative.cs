@@ -216,6 +216,8 @@ namespace SaxonHECSharp.NativeInterop
                 }
 
                 dlerror_mac(); // Clear any existing error
+                handle = LoadLibraryMac(path, RTLD_NOW | RTLD_GLOBAL); // Try loading the exact path first
+
                 if (File.Exists(soname))
                     handle = LoadLibraryMac(soname, RTLD_NOW | RTLD_GLOBAL);
 
