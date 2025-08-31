@@ -71,7 +71,7 @@ jobs:
       run: dotnet restore
       
     - name: Build Solution
-      run: dotnet build SaxonHECSharp.sln --configuration Release
+      run: dotnet build SaxonHECSharp.sln --configuration Release /p:DefineConstants=WINDOWS
 
     - name: Build Example Project
       shell: pwsh
@@ -92,4 +92,4 @@ jobs:
             exit 1
         }
         
-        dotnet run --project SaxonHECSharp.Example/SaxonHECSharp.Example.csproj --configuration Release
+        dotnet run --project SaxonHECSharp.Example/SaxonHECSharp.Example.csproj --configuration Release /p:DefineConstants=WINDOWS
