@@ -119,13 +119,23 @@ jobs:
           "ubuntu-24.04" { "linux-x64" }
           "macos-14" { "osx-arm64" }
         }
-        $nativeDir = Join-Path $targetDir "runtimes/$rid/native"
+        $nativeLibPath = "${targetDir}/runtimes/${rid}/native"
         
-        Write-Host "Checking Saxon libraries in $nativeDir:"
-        Get-ChildItem $nativeDir | ForEach-Object {
-            Write-Host "Library: $($_.Name)"
-            Write-Host "Size: $($_.Length) bytes"
-            Write-Host "Last Write Time: $($_.LastWriteTime)"
+        Write-Host "Checking Saxon libraries in: ${nativeLibPath}"
+        if (Test-Path -Path $nativeLibPath) {
+            Get-ChildItem -Path $nativeLibPath | ForEach-Object {
+                Write-Host "Found library: $($_.Name)"
+                Write-Host "  Size: $($_.Length) bytes"
+                Write-Host "  Last Write Time: $($_.LastWriteTime)"
+                if ($platform -ne "windows-2022") {
+                    Write-Host "  Permissions:"
+                    $fileInfo = Get-ChildItem -Path $_.FullName
+                    $fileInfo | Select-Object Mode, LastWriteTime, Length, Name | Format-Table -AutoSize
+                }
+            }
+        } else {
+            Write-Error "Native library directory not found: ${nativeLibPath}"
+            exit 1
         }
         
         # Set up library path for macOS
