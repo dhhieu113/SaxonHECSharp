@@ -97,13 +97,36 @@ jobs:
       if: always() && !cancelled()
       continue-on-error: true
       id: build-example
-      working-directory: SaxonHECSharp.Example
-      run: dotnet build --configuration ${{ matrix.configuration }}
+      shell: pwsh
+      run: |
+        # Set up library path for macOS
+        if ("${{ matrix.os }}" -eq "macos-14") {
+          $nativeLibPath = Join-Path (Get-Location) "SaxonHECSharp.Example/bin/${{ matrix.configuration }}/net9.0/runtimes/osx-arm64/native"
+          Write-Host "Setting DYLD_LIBRARY_PATH to $nativeLibPath"
+          $env:DYLD_LIBRARY_PATH = $nativeLibPath
+        }
+        
+        cd SaxonHECSharp.Example
+        dotnet build --configuration ${{ matrix.configuration }}
+        
+        # List out native libraries to verify they're in place
+        if ("${{ matrix.os }}" -eq "macos-14") {
+          Write-Host "Verifying native libraries..."
+          Get-ChildItem -Path $nativeLibPath -Filter "*.dylib"
+        }
 
     - name: Run tests
       if: always() && !cancelled() && (steps.build-solution.outcome == 'success' || steps.build-example.outcome == 'success')
       continue-on-error: true
-      run: dotnet test SaxonHECSharp.sln --configuration ${{ matrix.configuration }}
+      shell: pwsh
+      run: |
+        # Set up library path for macOS
+        if ("${{ matrix.os }}" -eq "macos-14") {
+          $nativeLibPath = Join-Path (Get-Location) "SaxonHECSharp.Example/bin/${{ matrix.configuration }}/net9.0/runtimes/osx-arm64/native"
+          Write-Host "Setting DYLD_LIBRARY_PATH to $nativeLibPath"
+          $env:DYLD_LIBRARY_PATH = $nativeLibPath
+        }
+        dotnet test SaxonHECSharp.sln --configuration ${{ matrix.configuration }}
 
     - name: Run Example Project
       working-directory: SaxonHECSharp.Example
