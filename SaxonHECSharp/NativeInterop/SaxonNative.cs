@@ -12,6 +12,9 @@ namespace SaxonHECSharp.NativeInterop
         private static IntPtr _coreHandle;
         private static IntPtr _libraryHandle;
 
+        private const string LinuxLib = "libdl.so.2";
+        private const string MacLib = "libdl.dylib";
+
         static SaxonNative()
         {
             try
@@ -20,8 +23,9 @@ namespace SaxonHECSharp.NativeInterop
                 _coreHandle = LoadLibraryFromRuntimes(CoreLibraryName);
                 if (_coreHandle == IntPtr.Zero)
                 {
+                    int err = Marshal.GetLastWin32Error();
                     throw new DllNotFoundException(
-                        $"Failed to load {CoreLibraryName} from runtimes folder"
+                        $"Failed to load {CoreLibraryName} from runtimes folder (error {err})"
                     );
                 }
 
@@ -29,8 +33,9 @@ namespace SaxonHECSharp.NativeInterop
                 _libraryHandle = LoadLibraryFromRuntimes(LibraryName);
                 if (_libraryHandle == IntPtr.Zero)
                 {
+                    int err = Marshal.GetLastWin32Error();
                     throw new DllNotFoundException(
-                        $"Failed to load {LibraryName} from runtimes folder"
+                        $"Failed to load {LibraryName} from runtimes folder (error {err})"
                     );
                 }
             }
@@ -100,11 +105,13 @@ namespace SaxonHECSharp.NativeInterop
             // Try with lib prefix (Linux/macOS convention)
             string candidate2 = Path.Combine(nativeDir, $"lib{libraryName}{GetExtension()}");
 
+
+
             if (File.Exists(candidate1))
-                return NativeLibrary.Load(candidate1);
+                return LoadLibraryCrossPlatform(candidate1);
 
             if (File.Exists(candidate2))
-                return NativeLibrary.Load(candidate2);
+                return LoadLibraryCrossPlatform(candidate2);
 
             return IntPtr.Zero;
         }
@@ -132,5 +139,45 @@ namespace SaxonHECSharp.NativeInterop
 
             throw new PlatformNotSupportedException("Unsupported platform");
         }
+
+        private static IntPtr LoadLibraryCrossPlatform(string path)
+        {
+            IntPtr handle = IntPtr.Zero;
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                handle = LoadLibrary(path);
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                handle = LoadLibraryPosix(path, RTLD_NOW);
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                handle = LoadLibraryMac(path, RTLD_NOW);
+            }
+
+            if (handle == IntPtr.Zero)
+            {
+                throw new DllNotFoundException($"Failed to load native library: {path}");
+            }
+
+            return handle;
+        }
+
+
+        // Windows
+        [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern IntPtr LoadLibrary(string lpFileName);
+
+        private const int RTLD_NOW = 2;
+        private const int RTLD_GLOBAL = 0x100;
+
+        [DllImport("libdl.so.2", EntryPoint = "dlopen")]
+        private static extern IntPtr LoadLibraryPosix([MarshalAs(UnmanagedType.LPStr)] string fileName, int flags);
+
+        [DllImport("libdl.dylib", EntryPoint = "dlopen")]
+        private static extern IntPtr LoadLibraryMac([MarshalAs(UnmanagedType.LPStr)] string fileName, int flags);
+
     }
 }
