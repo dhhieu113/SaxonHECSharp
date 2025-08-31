@@ -102,10 +102,82 @@ namespace SaxonHECSharp.NativeInterop
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
                 string versioned = Path.Combine(nativeDir, $"lib{libraryName}.so.12.8.0");
+                string soname = Path.Combine(nativeDir, $"lib{libraryName}.so.12");
 
-                //// Try loading soname first
-                //if (File.Exists(soname))
-                //    return LoadLibraryCrossPlatform(soname);
+                // Create symlink if missing
+                if (File.Exists(versioned) && !File.Exists(soname))
+                {
+                    try
+                    {
+                        var ln = new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = "ln",
+                            Arguments = $"-s \"{versioned}\" \"{soname}\"",
+                            UseShellExecute = false,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true
+                        };
+                        using var proc = System.Diagnostics.Process.Start(ln);
+                        proc.WaitForExit();
+
+                        if (proc.ExitCode != 0)
+                        {
+                            string error = proc.StandardError.ReadToEnd();
+                            Console.Error.WriteLine($"Failed to create symlink for {libraryName}: {error}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"Exception while creating symlink: {ex}");
+                    }
+                }
+
+                // Try loading soname first
+                if (File.Exists(soname))
+                    return LoadLibraryCrossPlatform(soname);
+
+                // Fallback to versioned file
+                if (File.Exists(versioned))
+                    return LoadLibraryCrossPlatform(versioned);
+
+                throw new DllNotFoundException($"Could not find {libraryName}.so.* in {nativeDir}");
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                string versioned = Path.Combine(nativeDir, $"lib{libraryName}.dylib.12.8.0");
+                string soname = Path.Combine(nativeDir, $"lib{libraryName}.dylib.12");
+
+                // Create symlink if missing
+                if (File.Exists(versioned) && !File.Exists(soname))
+                {
+                    try
+                    {
+                        var ln = new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = "ln",
+                            Arguments = $"-s \"{versioned}\" \"{soname}\"",
+                            UseShellExecute = false,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true
+                        };
+                        using var proc = System.Diagnostics.Process.Start(ln);
+                        proc.WaitForExit();
+
+                        if (proc.ExitCode != 0)
+                        {
+                            string error = proc.StandardError.ReadToEnd();
+                            Console.Error.WriteLine($"Failed to create symlink for {libraryName}: {error}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"Exception while creating symlink: {ex}");
+                    }
+                }
+
+                // Try loading soname first
+                if (File.Exists(soname))
+                    return LoadLibraryCrossPlatform(soname);
 
                 // Fallback to versioned file
                 if (File.Exists(versioned))
