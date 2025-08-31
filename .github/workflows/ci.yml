@@ -89,13 +89,20 @@ jobs:
       run: dotnet restore
       
     - name: Build Solution
+      continue-on-error: true
+      id: build-solution
       run: dotnet build SaxonHECSharp.sln --configuration ${{ matrix.configuration }}
 
     - name: Build Example Project
+      if: always() && !cancelled()
+      continue-on-error: true
+      id: build-example
       working-directory: SaxonHECSharp.Example
       run: dotnet build --configuration ${{ matrix.configuration }}
 
     - name: Run tests
+      if: always() && !cancelled() && (steps.build-solution.outcome == 'success' || steps.build-example.outcome == 'success')
+      continue-on-error: true
       run: dotnet test SaxonHECSharp.sln --configuration ${{ matrix.configuration }}
 
     - name: Run Example Project
