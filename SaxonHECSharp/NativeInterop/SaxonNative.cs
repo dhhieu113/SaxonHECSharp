@@ -6,10 +6,28 @@ namespace SaxonHECSharp.NativeInterop
 {
     internal static class SaxonNative
     {
-        private static string _actualCoreLibraryName;
-        private static string _actualLibraryName;
         private static IntPtr _coreHandle;
         private static IntPtr _libraryHandle;
+
+        // Function delegates
+        public delegate int GraalCreateIsolateDelegate(IntPtr parameters, out IntPtr isolate, out IntPtr thread);
+        public delegate IntPtr CreateSaxonProcessorDelegate(IntPtr thread, int license);
+        public delegate void JGcDelegate(IntPtr thread);
+        public delegate IntPtr CreateXslt30ProcessorDelegate(IntPtr thread);
+        public delegate IntPtr JCompileFromFileDelegate(IntPtr thread, IntPtr xsltProc, string stylesheetFile, string baseUri, int closeAfterUse);
+        public delegate IntPtr JTransformToFileDelegate(IntPtr thread, string outputFile, IntPtr executable, string sourceFile, string baseUri, string options);
+        public delegate IntPtr JTransformToValueDelegate(IntPtr thread, IntPtr executable, string sourceFile, string baseUri);
+        public delegate IntPtr JGetErrorMessageDelegate(IntPtr thread);
+
+        // Function pointers
+        public static GraalCreateIsolateDelegate graal_create_isolate;
+        public static CreateSaxonProcessorDelegate createSaxonProcessor;
+        public static JGcDelegate j_gc;
+        public static CreateXslt30ProcessorDelegate createXslt30Processor;
+        public static JCompileFromFileDelegate j_compileFromFile;
+        public static JTransformToFileDelegate j_transformToFile;
+        public static JTransformToValueDelegate j_transformToValue;
+        public static JGetErrorMessageDelegate j_getErrorMessage;
 
         static SaxonNative()
         {
@@ -18,6 +36,7 @@ namespace SaxonHECSharp.NativeInterop
                 // Determine actual library names and load them
                 SetupLibraryNames();
                 LoadNativeLibraries();
+                LoadFunctionPointers();
             }
             catch (Exception ex)
             {
@@ -41,22 +60,118 @@ namespace SaxonHECSharp.NativeInterop
                 throw new DirectoryNotFoundException($"Native library directory not found: {nativeDir}");
             }
 
-            // Find the actual library files (they may have version numbers)
-            _actualCoreLibraryName = FindActualLibraryName(nativeDir, "saxonc-core-ee");
-            _actualLibraryName = FindActualLibraryName(nativeDir, "saxonc-ee");
-
-            if (string.IsNullOrEmpty(_actualCoreLibraryName))
+            Console.WriteLine($"Looking for Saxon libraries in: {nativeDir}");
+            var files = Directory.GetFiles(nativeDir);
+            foreach (var file in files)
             {
-                throw new FileNotFoundException($"Saxon core library not found in {nativeDir}");
-            }
-
-            if (string.IsNullOrEmpty(_actualLibraryName))
-            {
-                throw new FileNotFoundException($"Saxon library not found in {nativeDir}");
+                Console.WriteLine($"Found: {Path.GetFileName(file)}");
             }
         }
 
-        private static string FindActualLibraryName(string directory, string baseName)
+        private static void LoadNativeLibraries()
+        {
+            string rid = GetRuntimeIdentifier();
+            string nativeDir = Path.Combine(
+                AppDomain.CurrentDomain.BaseDirectory,
+                "runtimes",
+                rid,
+                "native"
+            );
+
+            // Find actual library files
+            string coreLibPath = FindActualLibraryPath(nativeDir, "saxonc-core-ee");
+            string saxonLibPath = FindActualLibraryPath(nativeDir, "saxonc-ee");
+
+            if (string.IsNullOrEmpty(coreLibPath))
+                throw new FileNotFoundException($"Saxon core library not found in {nativeDir}");
+
+            if (string.IsNullOrEmpty(saxonLibPath))
+                throw new FileNotFoundException($"Saxon library not found in {nativeDir}");
+
+            Console.WriteLine($"Loading core library: {coreLibPath}");
+            Console.WriteLine($"Loading Saxon library: {saxonLibPath}");
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                LoadWindowsLibraries(coreLibPath, saxonLibPath);
+            }
+            else
+            {
+                LoadUnixLibraries(coreLibPath, saxonLibPath, nativeDir);
+            }
+        }
+
+        private static void LoadWindowsLibraries(string coreLibPath, string saxonLibPath)
+        {
+            _coreHandle = LoadLibrary(coreLibPath);
+            if (_coreHandle == IntPtr.Zero)
+            {
+                int err = Marshal.GetLastWin32Error();
+                throw new DllNotFoundException($"Failed to load {coreLibPath} (error {err})");
+            }
+
+            _libraryHandle = LoadLibrary(saxonLibPath);
+            if (_libraryHandle == IntPtr.Zero)
+            {
+                int err = Marshal.GetLastWin32Error();
+                throw new DllNotFoundException($"Failed to load {saxonLibPath} (error {err})");
+            }
+        }
+
+        private static void LoadUnixLibraries(string coreLibPath, string saxonLibPath, string nativeDir)
+        {
+            // Set library path for dependency resolution
+            SetLibraryPath(nativeDir);
+
+            // Load core library with RTLD_GLOBAL so symbols are available
+            _coreHandle = dlopen(coreLibPath, RTLD_NOW | RTLD_GLOBAL);
+            if (_coreHandle == IntPtr.Zero)
+            {
+                string error = GetDlError();
+                throw new DllNotFoundException($"Failed to load {coreLibPath}: {error}");
+            }
+
+            // Load Saxon library
+            _libraryHandle = dlopen(saxonLibPath, RTLD_NOW | RTLD_GLOBAL);
+            if (_libraryHandle == IntPtr.Zero)
+            {
+                string error = GetDlError();
+                throw new DllNotFoundException($"Failed to load {saxonLibPath}: {error}");
+            }
+        }
+
+        private static void LoadFunctionPointers()
+        {
+            // Load function pointers from the loaded libraries
+            graal_create_isolate = GetFunction<GraalCreateIsolateDelegate>(_coreHandle, "graal_create_isolate");
+            createSaxonProcessor = GetFunction<CreateSaxonProcessorDelegate>(_coreHandle, "createSaxonProcessor");
+            j_gc = GetFunction<JGcDelegate>(_coreHandle, "j_gc");
+            createXslt30Processor = GetFunction<CreateXslt30ProcessorDelegate>(_coreHandle, "createXslt30Processor");
+            j_compileFromFile = GetFunction<JCompileFromFileDelegate>(_coreHandle, "j_compileFromFile");
+            j_transformToFile = GetFunction<JTransformToFileDelegate>(_coreHandle, "j_transformToFile");
+            j_transformToValue = GetFunction<JTransformToValueDelegate>(_coreHandle, "j_transformToValue");
+            j_getErrorMessage = GetFunction<JGetErrorMessageDelegate>(_coreHandle, "j_getErrorMessage");
+        }
+
+        private static T GetFunction<T>(IntPtr handle, string functionName) where T : class
+        {
+            IntPtr functionPtr = GetProcAddress(handle, functionName);
+            if (functionPtr == IntPtr.Zero)
+            {
+                throw new EntryPointNotFoundException($"Function '{functionName}' not found in loaded library");
+            }
+            return Marshal.GetDelegateForFunctionPointer<T>(functionPtr);
+        }
+
+        private static IntPtr GetProcAddress(IntPtr handle, string functionName)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                return GetProcAddressWin32(handle, functionName);
+            else
+                return dlsym(handle, functionName);
+        }
+
+        private static string FindActualLibraryPath(string directory, string baseName)
         {
             string prefix = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "" : "lib";
             string extension = GetLibraryExtension();
@@ -87,58 +202,6 @@ namespace SaxonHECSharp.NativeInterop
             return null;
         }
 
-        private static void LoadNativeLibraries()
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                LoadWindowsLibraries();
-            }
-            else
-            {
-                LoadUnixLibraries();
-            }
-        }
-
-        private static void LoadWindowsLibraries()
-        {
-            _coreHandle = LoadLibrary(_actualCoreLibraryName);
-            if (_coreHandle == IntPtr.Zero)
-            {
-                int err = Marshal.GetLastWin32Error();
-                throw new DllNotFoundException($"Failed to load {_actualCoreLibraryName} (error {err})");
-            }
-
-            _libraryHandle = LoadLibrary(_actualLibraryName);
-            if (_libraryHandle == IntPtr.Zero)
-            {
-                int err = Marshal.GetLastWin32Error();
-                throw new DllNotFoundException($"Failed to load {_actualLibraryName} (error {err})");
-            }
-        }
-
-        private static void LoadUnixLibraries()
-        {
-            // Set library path for dependency resolution
-            string nativeDir = Path.GetDirectoryName(_actualCoreLibraryName);
-            SetLibraryPath(nativeDir);
-
-            // Load core library
-            _coreHandle = dlopen(_actualCoreLibraryName, RTLD_NOW | RTLD_GLOBAL);
-            if (_coreHandle == IntPtr.Zero)
-            {
-                string error = GetDlError();
-                throw new DllNotFoundException($"Failed to load {_actualCoreLibraryName}: {error}");
-            }
-
-            // Load Saxon library
-            _libraryHandle = dlopen(_actualLibraryName, RTLD_NOW | RTLD_GLOBAL);
-            if (_libraryHandle == IntPtr.Zero)
-            {
-                string error = GetDlError();
-                throw new DllNotFoundException($"Failed to load {_actualLibraryName}: {error}");
-            }
-        }
-
         private static void SetLibraryPath(string nativeDir)
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
@@ -164,57 +227,15 @@ namespace SaxonHECSharp.NativeInterop
         }
 
         // -------------------------
-        // Graal isolate functions
-        // -------------------------
-        [DllImport("saxonc-core-ee", CallingConvention = CallingConvention.Cdecl)]
-        public static extern int graal_create_isolate(IntPtr parameters, out IntPtr isolate, out IntPtr thread);
-
-        // -------------------------
-        // Saxon functions
-        // -------------------------
-        [DllImport("saxonc-core-ee", CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr createSaxonProcessor(IntPtr thread, int license);
-
-        [DllImport("saxonc-core-ee", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void j_gc(IntPtr thread);
-
-        [DllImport("saxonc-core-ee", CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr createXslt30Processor(IntPtr thread);
-
-        [DllImport("saxonc-core-ee", CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr j_compileFromFile(
-            IntPtr thread,
-            IntPtr xsltProc,
-            [MarshalAs(UnmanagedType.LPStr)] string stylesheetFile,
-            [MarshalAs(UnmanagedType.LPStr)] string baseUri,
-            int closeAfterUse);
-
-        [DllImport("saxonc-core-ee", CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr j_transformToFile(
-            IntPtr thread,
-            [MarshalAs(UnmanagedType.LPStr)] string outputFile,
-            IntPtr executable,
-            [MarshalAs(UnmanagedType.LPStr)] string sourceFile,
-            [MarshalAs(UnmanagedType.LPStr)] string baseUri,
-            [MarshalAs(UnmanagedType.LPStr)] string options);
-
-        [DllImport("saxonc-core-ee", CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr j_transformToValue(
-            IntPtr thread,
-            IntPtr executable,
-            [MarshalAs(UnmanagedType.LPStr)] string sourceFile,
-            [MarshalAs(UnmanagedType.LPStr)] string baseUri);
-
-        [DllImport("saxonc-core-ee", CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr j_getErrorMessage(IntPtr thread);
-
-        // -------------------------
         // Platform-specific imports
         // -------------------------
 
         // Windows
         [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern IntPtr LoadLibrary(string lpFileName);
+
+        [DllImport("kernel32", SetLastError = true)]
+        private static extern IntPtr GetProcAddressWin32(IntPtr hModule, string procName);
 
         // Linux / macOS
         private const int RTLD_NOW = 2;
@@ -225,6 +246,9 @@ namespace SaxonHECSharp.NativeInterop
 
         [DllImport("libdl")]
         private static extern IntPtr dlerror();
+
+        [DllImport("libdl")]
+        private static extern IntPtr dlsym(IntPtr handle, string symbol);
 
         // -------------------------
         // Helper methods
