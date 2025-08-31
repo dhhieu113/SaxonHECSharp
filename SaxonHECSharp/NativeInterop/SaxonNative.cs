@@ -11,7 +11,7 @@ namespace SaxonHECSharp.NativeInterop
     private const string CoreLibraryName = "saxonc-core-ee";
     private const string LibraryName = "saxonc-ee";
 #else
-        private const string CoreLibraryName = "libsaxonc-core";
+        private const string CoreLibraryName = "libsaxonc-core-ee";
         private const string LibraryName = "libsaxonc-ee";
 #endif
 
