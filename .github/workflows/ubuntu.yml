@@ -29,12 +29,12 @@ jobs:
       shell: pwsh
       run: |
         $downloadUrl = "https://downloads.saxonica.com/SaxonC/EE/12/SaxonCEE-linux-x86_64-12-8-0.zip"
-        $targetDir = "SaxonHECSharp.Example/bin/Release/net9.0"
-        $runtimesDir = Join-Path $targetDir "runtimes"
+        $targetDir = "SaxonHECSharp/runtimes"
+        $nativeDir = Join-Path $targetDir "linux-x64/native"
         $tempDir = "saxon-temp"
         
         # Create directories
-        New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+        New-Item -ItemType Directory -Force -Path $nativeDir | Out-Null
         New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
         
         Write-Host "Downloading Saxon from $downloadUrl"
@@ -45,9 +45,6 @@ jobs:
         Remove-Item $zipPath
         
         # Move files to runtimes directory
-        $nativeDir = Join-Path $runtimesDir "linux-x64/native"
-        New-Item -ItemType Directory -Force -Path $nativeDir | Out-Null
-        
         Write-Host "Looking for Saxon libraries in extracted contents..."
         # Find and copy library files recursively
         Get-ChildItem -Path $tempDir -Recurse -File | 
