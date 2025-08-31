@@ -98,21 +98,52 @@ namespace SaxonHECSharp.NativeInterop
 
         private static (string CoreLibPath, string MainLibPath) GetLibraryPaths()
         {
+            var searchPaths = new List<string>();
             var rid = GetRuntimeIdentifier();
-            var nativeDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "runtimes", rid, "native");
             
-            if (!Directory.Exists(nativeDir))
+            // Add standard search paths
+            searchPaths.Add(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "runtimes", rid, "native"));
+            searchPaths.Add(AppDomain.CurrentDomain.BaseDirectory);
+            
+            // Add macOS specific paths
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                throw new DirectoryNotFoundException($"Native library directory not found: {nativeDir}");
+                searchPaths.Add("/usr/local/lib");
+                searchPaths.Add("/usr/lib");
+                
+                // Add custom environment variable path if specified
+                var saxonLibPath = Environment.GetEnvironmentVariable("SAXON_LIB_PATH");
+                if (!string.IsNullOrEmpty(saxonLibPath))
+                    searchPaths.Add(saxonLibPath);
             }
 
-            var coreLibPath = Path.Combine(nativeDir, GetLibraryFileName(CoreLibraryName));
-            var mainLibPath = Path.Combine(nativeDir, GetLibraryFileName(LibraryName));
+            string coreLibPath = null;
+            string mainLibPath = null;
 
-            if (!File.Exists(coreLibPath))
-                throw new FileNotFoundException($"Core library not found: {coreLibPath}");
-            if (!File.Exists(mainLibPath))
-                throw new FileNotFoundException($"Main library not found: {mainLibPath}");
+            foreach (var path in searchPaths)
+            {
+                if (!Directory.Exists(path))
+                    continue;
+
+                var coreName = GetLibraryFileName(CoreLibraryName);
+                var mainName = GetLibraryFileName(LibraryName);
+                
+                var testCorePath = Path.Combine(path, coreName);
+                var testMainPath = Path.Combine(path, mainName);
+
+                if (File.Exists(testCorePath))
+                    coreLibPath = testCorePath;
+                if (File.Exists(testMainPath))
+                    mainLibPath = testMainPath;
+
+                if (coreLibPath != null && mainLibPath != null)
+                    break;
+            }
+
+            if (coreLibPath == null)
+                throw new FileNotFoundException($"Core library not found in search paths: {string.Join(", ", searchPaths)}");
+            if (mainLibPath == null)
+                throw new FileNotFoundException($"Main library not found in search paths: {string.Join(", ", searchPaths)}");
 
             return (coreLibPath, mainLibPath);
         }
@@ -193,6 +224,20 @@ namespace SaxonHECSharp.NativeInterop
             
             string prefix = "lib";
             string extension = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? ".dylib" : ".so";
+            
+            // Try to load with both naming conventions on macOS
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "runtimes", GetRuntimeIdentifier(), "native", $"{prefix}{libraryName}{extension}");
+                if (File.Exists(path))
+                    return $"{prefix}{libraryName}{extension}";
+                
+                // Try without lib prefix
+                path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "runtimes", GetRuntimeIdentifier(), "native", $"{libraryName}{extension}");
+                if (File.Exists(path))
+                    return $"{libraryName}{extension}";
+            }
+            
             return $"{prefix}{libraryName}{extension}";
         }
     }
