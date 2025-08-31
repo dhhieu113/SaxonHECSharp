@@ -238,7 +238,7 @@ namespace SaxonHECSharp.NativeInterop
                 if (proc.ExitCode != 0)
                 {
                     string error = proc.StandardError.ReadToEnd();
-                    Console.Error.WriteLine($"Failed to create symlink for {libraryName}: {error}");
+                    Console.Error.WriteLine($"Failed to create symlink for {versioned} -> {soname}: {error}");
                 }
             }
             catch (Exception ex)
