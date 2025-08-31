@@ -52,8 +52,10 @@ jobs:
         foreach ($libDir in $libDirs) {
             Write-Host "Copying libraries from: $($libDir.FullName)"
             Get-ChildItem -Path $libDir.FullName -Recurse -File | ForEach-Object {
-                Write-Host "Found library: $($_.FullName)"
-                Copy-Item $_.FullName $nativeDir -Force
+                if ($_.Extension -ne ".cmake") {
+                    Write-Host "Found library: $($_.FullName)"
+                    Copy-Item $_.FullName $nativeDir -Force
+                }
             }
         }
         
