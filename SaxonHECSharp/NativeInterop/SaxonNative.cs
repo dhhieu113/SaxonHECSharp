@@ -253,3 +253,4 @@ namespace SaxonHECSharp.NativeInterop
             throw new PlatformNotSupportedException("Unsupported platform");
         }
     }
+}
