@@ -2,15 +2,13 @@ using System;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace SaxonHECSharp.NativeInterop
 {
     internal static class NativeLibraryLoader
     {
-        public const string CoreLibraryName = "saxonc-core-ee";
-        public const string LibraryName = "saxonc-ee";
+        private const string CoreLibraryName = "saxonc-core-ee";
+        private const string LibraryName = "saxonc-ee";
         private static IntPtr _coreLibraryHandle;
         private static IntPtr _libraryHandle;
 
@@ -28,34 +26,56 @@ namespace SaxonHECSharp.NativeInterop
         {
             lock (LoadLock)
             {
+                if (_libraryHandle != IntPtr.Zero && _coreLibraryHandle != IntPtr.Zero)
+                    return;
+
+                var rid = GetRuntimeIdentifier();
+                var searchPaths = new[] {
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "runtimes", rid, "native"),
+                    AppDomain.CurrentDomain.BaseDirectory
+                };
+
+                string coreLibPath = null;
+                string mainLibPath = null;
+
+                foreach (var path in searchPaths)
+                {
+                    if (!Directory.Exists(path))
+                        continue;
+
+                    var coreName = GetLibraryFileName(CoreLibraryName);
+                    var mainName = GetLibraryFileName(LibraryName);
+
+                    var testCorePath = Path.Combine(path, coreName);
+                    var testMainPath = Path.Combine(path, mainName);
+
+                    if (File.Exists(testCorePath))
+                        coreLibPath = testCorePath;
+                    if (File.Exists(testMainPath))
+                        mainLibPath = testMainPath;
+
+                    if (coreLibPath != null && mainLibPath != null)
+                        break;
+                }
+
+                if (coreLibPath == null || mainLibPath == null)
+                    throw new DllNotFoundException($"Saxon libraries not found in search paths: {string.Join(", ", searchPaths)}");
+
                 try
                 {
-                    if (_libraryHandle != IntPtr.Zero && _coreLibraryHandle != IntPtr.Zero)
-                        return;
-
-                    var libraryPaths = GetLibraryPaths();
-                    
-                    // Load core library first
-                    _coreLibraryHandle = LoadNativeLibrary(libraryPaths.CoreLibPath);
-                    if (_coreLibraryHandle == IntPtr.Zero)
-                        throw new DllNotFoundException($"Failed to load core library: {libraryPaths.CoreLibPath}");
-                    
-                    // Then load main library
-                    _libraryHandle = LoadNativeLibrary(libraryPaths.MainLibPath);
-                    if (_libraryHandle == IntPtr.Zero)
-                        throw new DllNotFoundException($"Failed to load main library: {libraryPaths.MainLibPath}");
+                    _coreLibraryHandle = LoadNativeLibrary(coreLibPath);
+                    _libraryHandle = LoadNativeLibrary(mainLibPath);
                 }
                 catch (Exception ex)
                 {
-                    // Clean up if either library failed to load
                     if (_coreLibraryHandle != IntPtr.Zero)
                         ReleaseLibrary(_coreLibraryHandle);
                     if (_libraryHandle != IntPtr.Zero)
                         ReleaseLibrary(_libraryHandle);
-                        
+
                     _coreLibraryHandle = IntPtr.Zero;
                     _libraryHandle = IntPtr.Zero;
-                    
+
                     throw new DllNotFoundException($"Failed to load Saxon libraries: {ex.Message}", ex);
                 }
             }
@@ -162,7 +182,8 @@ namespace SaxonHECSharp.NativeInterop
             else
             {
                 const int RTLD_NOW = 2;
-                var handle = dlopen_unix(libraryPath, RTLD_NOW);
+                const int RTLD_GLOBAL = 8;
+                var handle = dlopen_unix(libraryPath, RTLD_NOW | RTLD_GLOBAL);
                 if (handle == IntPtr.Zero)
                 {
                     var error = Marshal.PtrToStringAnsi(dlerror());
@@ -221,23 +242,9 @@ namespace SaxonHECSharp.NativeInterop
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 return $"{libraryName}.dll";
-            
+
             string prefix = "lib";
             string extension = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? ".dylib" : ".so";
-            
-            // Try to load with both naming conventions on macOS
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "runtimes", GetRuntimeIdentifier(), "native", $"{prefix}{libraryName}{extension}");
-                if (File.Exists(path))
-                    return $"{prefix}{libraryName}{extension}";
-                
-                // Try without lib prefix
-                path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "runtimes", GetRuntimeIdentifier(), "native", $"{libraryName}{extension}");
-                if (File.Exists(path))
-                    return $"{libraryName}{extension}";
-            }
-            
             return $"{prefix}{libraryName}{extension}";
         }
     }
