@@ -1,7 +1,17 @@
 using System;
 using System.IO;
 using System.Reflection;
-using System.Runtime.InteropServices;
+usi        /// <summary>
+        /// Set a custom DllImport resolver for an assembly
+        /// </summary>
+        public static void SetDllImportResolver(Assembly assembly)
+        {
+            NativeLibrary.SetDllImportResolver(assembly, LoadLibrary);
+        }
+        
+        /// <summary>
+        /// Load a native library
+        /// </summary>untime.InteropServices;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -24,6 +34,41 @@ namespace SaxonHECSharp.NativeInterop
         // Dictionary to store resolvers
         private static readonly System.Collections.Generic.Dictionary<Assembly, DllImportResolver> Resolvers = 
             new System.Collections.Generic.Dictionary<Assembly, DllImportResolver>();
+
+        private static IntPtr LoadLibrary(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
+        {
+            string rid = "";
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                rid = "win-" + RuntimeInformation.ProcessArchitecture.ToString().ToLower();
+                libraryName = $"{libraryName}.dll";
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                rid = "linux-" + RuntimeInformation.ProcessArchitecture.ToString().ToLower();
+                libraryName = $"lib{libraryName}.so";
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                rid = "osx-" + RuntimeInformation.ProcessArchitecture.ToString().ToLower();
+                libraryName = $"lib{libraryName}.dylib";
+            }
+
+            if (!string.IsNullOrEmpty(rid))
+            {
+                string nugetFallBackPath = Path.Combine(AppContext.BaseDirectory, "runtimes", rid, "native", libraryName);
+                if (File.Exists(nugetFallBackPath))
+                {
+                    if (NativeLibrary.TryLoad(nugetFallBackPath, out IntPtr handle))
+                    {
+                        return handle;
+                    }
+                }
+            }
+
+            // Fallback to default loading mechanism
+            return NativeLibrary.Load(libraryName, assembly, searchPath);
+        }
             
         /// <summary>
         /// Set a custom DllImport resolver for an assembly

@@ -93,23 +93,3 @@ jobs:
         }
         
         dotnet run --project SaxonHECSharp.Example/SaxonHECSharp.Example.csproj --configuration Release
-
-    - name: Run Example Project
-      shell: pwsh
-      run: |
-        # Verify Saxon library exists and is accessible
-        $nativeLibPath = "SaxonHECSharp/runtimes/win-x64/native"
-        
-        Write-Host "Checking Saxon libraries in: ${nativeLibPath}"
-        if (Test-Path -Path $nativeLibPath) {
-            Get-ChildItem -Path $nativeLibPath | ForEach-Object {
-                Write-Host "Found library: $($_.Name)"
-                Write-Host "  Size: $($_.Length) bytes"
-                Write-Host "  Last Write Time: $($_.LastWriteTime)"
-            }
-        } else {
-            Write-Error "Native library directory not found: ${nativeLibPath}"
-            exit 1
-        }
-        
-        dotnet run --project SaxonHECSharp.Example/SaxonHECSharp.Example.csproj --configuration Release
