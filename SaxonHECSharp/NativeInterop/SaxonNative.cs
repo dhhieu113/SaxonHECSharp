@@ -94,15 +94,33 @@ namespace SaxonHECSharp.NativeInterop
         private static IntPtr LoadLibraryFromRuntimes(string libraryName)
         {
             string rid = GetRuntimeIdentifier();
-            string path = Path.Combine(
-                AppDomain.CurrentDomain.BaseDirectory,
-                "runtimes",
-                rid,
-                "native",
-                GetLibraryFileName(libraryName)
-            );
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string nativeDir = Path.Combine(baseDir, "runtimes", rid, "native");
 
-            return LoadLibraryCrossPlatform(path);
+            // Try without lib prefix
+            string candidate1 = Path.Combine(nativeDir, $"{libraryName}{GetExtension()}");
+            // Try with lib prefix (Linux/macOS convention)
+            string candidate2 = Path.Combine(nativeDir, $"lib{libraryName}{GetExtension()}");
+
+            if (File.Exists(candidate1))
+                return LoadLibraryCrossPlatform(candidate1);
+
+            if (File.Exists(candidate2))
+                return LoadLibraryCrossPlatform(candidate2);
+
+            return IntPtr.Zero;
+        }
+
+        private static string GetExtension()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                return ".dll";
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                return ".so";
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                return ".dylib";
+
+            throw new PlatformNotSupportedException("Unsupported platform");
         }
 
         private static string GetRuntimeIdentifier()
