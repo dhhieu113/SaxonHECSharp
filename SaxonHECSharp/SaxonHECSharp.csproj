@@ -14,7 +14,6 @@
     <RepositoryUrl>https://github.com/dhhieu113/SaxonHECSharp</RepositoryUrl>
     
     <!-- Native library properties -->
-    <NoBuild>true</NoBuild>
     <IncludeBuildOutput>true</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
   </PropertyGroup>
