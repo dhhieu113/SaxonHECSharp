@@ -94,15 +94,21 @@ namespace SaxonHECSharp.NativeInterop
         private static IntPtr LoadLibraryFromRuntimes(string libraryName)
         {
             string rid = GetRuntimeIdentifier();
-            string path = Path.Combine(
-                AppDomain.CurrentDomain.BaseDirectory,
-                "runtimes",
-                rid,
-                "native",
-                GetLibraryFileName(libraryName)
-            );
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string nativeDir = Path.Combine(baseDir, "runtimes", rid, "native");
 
-            return LoadLibraryCrossPlatform(path);
+            // Try without lib prefix
+            string candidate1 = Path.Combine(nativeDir, $"{libraryName}{GetExtension()}");
+            // Try with lib prefix (Linux/macOS convention)
+            string candidate2 = Path.Combine(nativeDir, $"lib{libraryName}{GetExtension()}");
+
+            if (File.Exists(candidate1))
+                return LoadLibraryCrossPlatform(candidate1);
+
+            if (File.Exists(candidate2))
+                return LoadLibraryCrossPlatform(candidate2);
+
+            return IntPtr.Zero;
         }
 
         private static string GetRuntimeIdentifier()
@@ -117,14 +123,14 @@ namespace SaxonHECSharp.NativeInterop
             throw new PlatformNotSupportedException("Unsupported platform");
         }
 
-        private static string GetLibraryFileName(string library)
+        private static string GetExtension()
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                return $"{library}.dll";
+                return ".dll";
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                return $"lib{library}.so";
+                return ".so";
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                return $"lib{library}.dylib";
+                return ".dylib";
 
             throw new PlatformNotSupportedException("Unsupported platform");
         }
@@ -132,23 +138,29 @@ namespace SaxonHECSharp.NativeInterop
         private static IntPtr LoadLibraryCrossPlatform(string path)
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                return LoadLibrary(path);
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
-                RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                return dlopen(path, RTLD_NOW);
+                return LoadLibraryWindows(path);
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                return dlopen_linux(path, RTLD_NOW);
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                return dlopen_osx(path, RTLD_NOW);
 
             throw new PlatformNotSupportedException();
         }
 
         // Windows
         [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
-        private static extern IntPtr LoadLibrary(string lpFileName);
+        private static extern IntPtr LoadLibraryWindows(string lpFileName);
 
-        // Linux / macOS
+        // Linux
         private const int RTLD_NOW = 2;
 
         [DllImport("libdl.so.2", SetLastError = true)]
-        private static extern IntPtr dlopen(string fileName, int flags);
+        private static extern IntPtr dlopen_linux(string fileName, int flags);
 
+        // macOS
+        [DllImport("libdl.dylib", SetLastError = true)]
+        private static extern IntPtr dlopen_osx(string fileName, int flags);
     }
 }
