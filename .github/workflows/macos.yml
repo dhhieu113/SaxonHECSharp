@@ -51,7 +51,7 @@ jobs:
         Write-Host "Looking for Saxon libraries in extracted contents..."
         # Find and copy library files recursively
         Get-ChildItem -Path $tempDir -Recurse -File | 
-        Where-Object { $_.Extension -in '.dylib' } | 
+        # Where-Object { $_.Extension -in '.dylib' } | 
         ForEach-Object { 
             Write-Host "Found library: $($_.FullName)"
             Copy-Item $_.FullName $nativeDir -Force 

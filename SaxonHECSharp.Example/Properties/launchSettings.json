@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "SaxonHECSharp.Example": {
+      "commandName": "Project"
+    },
+    "WSL": {
+      "commandName": "WSL2",
+      "distributionName": ""
+    }
+  }
+}
