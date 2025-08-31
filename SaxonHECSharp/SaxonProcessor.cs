@@ -1,5 +1,5 @@
-using System;
 using SaxonHECSharp.NativeInterop;
+using System;
 
 namespace SaxonHECSharp
 {
