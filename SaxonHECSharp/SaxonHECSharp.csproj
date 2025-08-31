@@ -18,10 +18,9 @@
     <!-- Native library properties -->
     <IncludeBuildOutput>true</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-
-    <ItemGroup>
+  </PropertyGroup>
+     <ItemGroup>
     <!-- Include native libraries in the NuGet package -->
       <None Include="runtimes/**/*" Pack="true" PackagePath="runtimes" />
     </ItemGroup>
-  </PropertyGroup>
 </Project>
