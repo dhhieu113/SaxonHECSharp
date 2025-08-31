@@ -49,9 +49,9 @@ namespace SaxonHECSharp.NativeInterop
                 {
                     // Clean up if either library failed to load
                     if (_coreLibraryHandle != IntPtr.Zero)
-                        FreeLibrary(_coreLibraryHandle);
+                        ReleaseLibrary(_coreLibraryHandle);
                     if (_libraryHandle != IntPtr.Zero)
-                        FreeLibrary(_libraryHandle);
+                        ReleaseLibrary(_libraryHandle);
                         
                     _coreLibraryHandle = IntPtr.Zero;
                     _libraryHandle = IntPtr.Zero;
@@ -76,7 +76,7 @@ namespace SaxonHECSharp.NativeInterop
         [DllImport("libdl")]
         private static extern int dlclose(IntPtr handle);
 
-        private static void FreeLibrary(IntPtr handle)
+        private static void ReleaseLibrary(IntPtr handle)
         {
             if (handle == IntPtr.Zero)
                 return;

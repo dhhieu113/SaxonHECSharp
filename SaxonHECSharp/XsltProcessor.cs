@@ -25,7 +25,7 @@ namespace SaxonHECSharp
         public void CompileStylesheet(string stylesheetFilePath)
         {
             ThrowIfDisposed();
-            IntPtr result = SaxonNative.j_compileFromFile(_thread, _handle, stylesheetFilePath, baseUri: null, 0);
+            IntPtr result = SaxonNative.j_compileFromFile(_thread, _handle, stylesheetFilePath, baseUri: default, 0);
             if (result == IntPtr.Zero)
             {
                 IntPtr errorPtr = SaxonNative.j_getErrorMessage(_thread);
