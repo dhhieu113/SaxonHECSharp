@@ -6,10 +6,25 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PlatformTarget>x64</PlatformTarget>
+    
+    <!-- NuGet package properties -->
+    <PackageId>SaxonHECSharp</PackageId>
+    <Authors>dhhieu113</Authors>
+    <Description>C# bindings for Saxon-HE C/C++ (libsaxon-hec)</Description>
+    <RepositoryUrl>https://github.com/dhhieu113/SaxonHECSharp</RepositoryUrl>
+    
+    <!-- Native library properties -->
+    <NoBuild>true</NoBuild>
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
   </PropertyGroup>
 
+  <!-- Include native libraries in the NuGet package -->
   <ItemGroup>
-    <None Include="lib\*.dll" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(OutputPath)\runtimes\**\*.*">
+      <Pack>true</Pack>
+      <PackagePath>runtimes</PackagePath>
+    </Content>
   </ItemGroup>
 
 </Project>

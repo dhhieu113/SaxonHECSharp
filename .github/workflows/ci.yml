@@ -94,6 +94,10 @@ jobs:
     - name: Run tests
       run: dotnet test SaxonHECSharp.sln --configuration ${{ matrix.configuration }} --no-build
 
+    - name: Run Example Project
+      working-directory: SaxonHECSharp.Example
+      run: dotnet run --configuration ${{ matrix.configuration }} --no-build
+
     - name: Collect native libraries
       shell: bash
       run: |
@@ -152,6 +156,18 @@ jobs:
           fi
         done
 
+    - name: Copy native libraries to project
+      shell: bash
+      run: |
+        # Create the runtimes directory in the project
+        mkdir -p "SaxonHECSharp/bin/Release/net7.0/runtimes"
+        
+        # Copy all native libraries to the project's runtimes directory
+        cp -r "bin/Release/runtimes/"* "SaxonHECSharp/bin/Release/net7.0/runtimes/"
+        
+        echo "Native libraries copied to project:"
+        ls -R "SaxonHECSharp/bin/Release/net7.0/runtimes"
+
     - name: Pack NuGet package
       run: |
         VERSION="1.0.0"
@@ -166,7 +182,6 @@ jobs:
         dotnet pack SaxonHECSharp/SaxonHECSharp.csproj \
           --configuration Release \
           -p:Version=$VERSION \
-          -p:PackageId="SaxonHECSharp" \
           --output nupkgs
 
     - name: Upload NuGet package
