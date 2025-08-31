@@ -1,0 +1,214 @@
+name: CI - SaxonHECSharp Build
+
+on:
+  push:
+    branches: [ master, main ]
+    tags:
+      - 'v*'   # Triggers on v1.0.0, v2.0.0, etc.
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-2022, ubuntu-24.04, macos-14]
+        configuration: [Release]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Setup Saxon Libraries
+      shell: pwsh
+      run: |
+        $librariesPath = Join-Path $env:GITHUB_WORKSPACE "SaxonHECSharp.Example/bin/${{ matrix.configuration }}/net9.0/runtimes"
+        dotnet run --project SaxonHECSharp.Example --configuration ${{ matrix.configuration }}
+        if (Test-Path $librariesPath) {
+          Write-Host "Saxon libraries successfully downloaded"
+        } else {
+          Write-Error "Failed to download Saxon libraries"
+          exit 1
+        }
+
+    - name: Build
+      run: dotnet build --configuration ${{ matrix.configuration }}
+
+    - name: Run tests
+      run: dotnet test --configuration ${{ matrix.configuration }} --no-build
+
+    - name: Collect native libraries
+      shell: bash
+      run: |
+        mkdir -p artifacts/runtimes
+        
+        # Define the runtime identifier based on OS
+        case "${{ matrix.os }}" in
+          ubuntu-24.04) RID="linux-x64" ;;
+          macos-14)     RID="osx-arm64" ;;
+          windows-2022) RID="win-x64" ;;
+        esac
+        
+        # Copy native libraries to artifacts
+        mkdir -p "artifacts/runtimes/$RID/native"
+        cp -r "SaxonHECSharp.Example/bin/${{ matrix.configuration }}/net9.0/runtimes/$RID/native/"* "artifacts/runtimes/$RID/native/"
+        
+        echo "Artifacts collected for $RID:"
+        ls -la "artifacts/runtimes/$RID/native/"
+
+    - name: Upload native libraries
+      uses: actions/upload-artifact@v4
+      with:
+        name: native-${{ matrix.os }}
+        path: artifacts/runtimes/
+
+  pack:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Download all native libraries
+      uses: actions/download-artifact@v4
+      with:
+        pattern: native-*
+        path: native-libs
+        merge-multiple: true
+
+    - name: Organize native libraries
+      shell: bash
+      run: |
+        mkdir -p bin/Release/runtimes
+        
+        # Copy native libraries to the correct location
+        for rid in linux-x64 osx-arm64 win-x64; do
+          if [ -d "native-libs/$rid/native" ]; then
+            mkdir -p "bin/Release/runtimes/$rid/native"
+            cp -r "native-libs/$rid/native/"* "bin/Release/runtimes/$rid/native/"
+            echo "✅ Copied native libraries for $rid"
+            ls -la "bin/Release/runtimes/$rid/native/"
+          fi
+        done
+
+    - name: Pack NuGet package
+      run: |
+        VERSION="1.0.0"
+        if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+          VERSION=$(echo "${{ github.ref }}" | sed 's|refs/tags/v||')
+        elif [[ "${{ github.ref }}" != refs/heads/main && "${{ github.ref }}" != refs/heads/master ]]; then
+          BRANCH=$(echo "${GITHUB_REF#refs/heads/}" | sed 's/[^a-zA-Z0-9]/-/g')
+          SHA=$(git rev-parse --short HEAD)
+          VERSION="1.0.0-${BRANCH}.${SHA}"
+        fi
+        
+        dotnet pack SaxonHECSharp/SaxonHECSharp.csproj \
+          --configuration Release \
+          -p:Version=$VERSION \
+          -p:PackageId="SaxonHECSharp" \
+          --output nupkgs
+
+    - name: Upload NuGet package
+      uses: actions/upload-artifact@v4
+      with:
+        name: nuget-package
+        path: nupkgs/*.nupkg
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: pack
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Download NuGet package
+      uses: actions/download-artifact@v4
+      with:
+        name: nuget-package
+        path: nupkgs
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Publish to NuGet.org
+      run: |
+        for package in nupkgs/*.nupkg; do
+          dotnet nuget push "$package" \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        done
+
+  create-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: pack
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Download native libraries
+      uses: actions/download-artifact@v4
+      with:
+        pattern: native-*
+        path: native-artifacts
+        merge-multiple: true
+
+    - name: Download NuGet package
+      uses: actions/download-artifact@v4
+      with:
+        name: nuget-package
+        path: nuget-artifacts
+
+    - name: Prepare release artifacts
+      run: |
+        mkdir -p release-artifacts
+        
+        # Create platform-specific archives
+        for rid in linux-x64 osx-arm64 win-x64; do
+          if [ -d "native-artifacts/$rid/native" ]; then
+            if [[ "$rid" == win-* ]]; then
+              (cd "native-artifacts/$rid" && zip -r "../../release-artifacts/saxon-native-$rid.zip" native/)
+            else
+              tar -czf "release-artifacts/saxon-native-$rid.tar.gz" -C "native-artifacts/$rid" native/
+            fi
+          fi
+        done
+        
+        # Copy NuGet package
+        cp nuget-artifacts/*.nupkg release-artifacts/
+
+    - name: Create GitHub Release
+      uses: ncipollo/release-action@v1
+      with:
+        artifacts: "release-artifacts/*"
+        allowUpdates: true
+        replacesArtifacts: true
+        generateReleaseNotes: true
+        body: |
+          ## 📦 Installation
+          
+          ### NuGet Package
+          ```bash
+          dotnet add package SaxonHECSharp
+          ```
+          
+          ### Native Libraries
+          Native libraries for each platform are included in the NuGet package.
+          Standalone native libraries are also available as separate downloads if needed.
+          
+          ## 🎯 Supported Platforms
+          - Windows (x64)
+          - Linux (x64)
+          - macOS (arm64)
