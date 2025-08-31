@@ -92,11 +92,11 @@ jobs:
       run: dotnet build --configuration ${{ matrix.configuration }}
 
     - name: Run tests
-      run: dotnet test SaxonHECSharp.sln --configuration ${{ matrix.configuration }} --no-build
+      run: dotnet test SaxonHECSharp.sln --configuration ${{ matrix.configuration }}
 
     - name: Run Example Project
       working-directory: SaxonHECSharp.Example
-      run: dotnet run --configuration ${{ matrix.configuration }} --no-build
+      run: dotnet run --configuration ${{ matrix.configuration }}
 
     - name: Collect native libraries
       shell: bash
