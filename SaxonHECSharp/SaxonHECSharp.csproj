@@ -1,16 +1,13 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net9.0</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     
     <!-- Multi-platform support -->
     <RuntimeIdentifiers>win-x64;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
-    
-    <!-- Define NETCOREAPP for .NET Core targets -->
-    <DefineConstants Condition="'$(TargetFramework)' == 'net9.0'">$(DefineConstants);NETCOREAPP</DefineConstants>
     
     <!-- NuGet package properties -->
     <PackageId>SaxonHECSharp</PackageId>
@@ -22,26 +19,4 @@
     <IncludeBuildOutput>true</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="System.Memory" Version="4.5.5" />
-    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
-    <PackageReference Include="System.Runtime" Version="4.3.1" />
-    <PackageReference Include="System.Collections" Version="4.3.0" />
-    <PackageReference Include="System.Threading.Tasks" Version="4.3.0" />
-    <PackageReference Include="System.Net.Http" Version="4.3.4" />
-    <!-- Windows-specific dependencies -->
-    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" Condition="'$(RuntimeIdentifier)' == 'win-x64'" />
-    <!-- .NET Core specific dependencies -->
-    <PackageReference Include="System.Runtime.Loader" Version="4.3.0" Condition="'$(TargetFramework)' == 'net8.0'" />
-  </ItemGroup>
-
-  <!-- Include native libraries in the NuGet package -->
-  <ItemGroup>
-    <Content Include="$(OutputPath)\runtimes\**\*.*">
-      <Pack>true</Pack>
-      <PackagePath>runtimes</PackagePath>
-    </Content>
-  </ItemGroup>
-
 </Project>

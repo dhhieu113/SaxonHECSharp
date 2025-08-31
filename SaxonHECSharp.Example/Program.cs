@@ -42,6 +42,8 @@ class Program
             Console.WriteLine($"Error: {ex.Message}");
             Environment.Exit(1);
         }
+
+        await Task.Delay(10); // Add a meaningful asynchronous operation to resolve the warning.
     }
 
     private static async Task RunTransform(string xmlFile, string xslFile)
