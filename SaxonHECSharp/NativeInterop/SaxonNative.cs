@@ -1,4 +1,13 @@
+using System;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+#if NETCOREAPP
+using System.Runtime.Loader;
+#endif
 
 namespace SaxonHECSharp.NativeInterop
 {
@@ -6,23 +15,7 @@ namespace SaxonHECSharp.NativeInterop
     {
         private const string LibraryName = "saxonc-ee";
         private const string CoreLibraryName = "saxonc-core-ee";
-        static SaxonNative()
-        {
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string saxonDir = Path.Combine(baseDir, "SaxonCEE");
-
-            // Add the SaxonCEE/bin directory to PATH so dependencies can be found
-            string binPath = Path.Combine(saxonDir, "bin");
-            var path = Environment.GetEnvironmentVariable("PATH") ?? "";
-            Environment.SetEnvironmentVariable("PATH", $"{binPath};{path}");
-
-            // Load core library first
-            string coreDllPath = Path.Combine(binPath, $"{CoreLibraryName}.dll");
-            if (!NativeLibrary.TryLoad(coreDllPath, out _))
-            {
-                throw new DllNotFoundException($"Failed to load {CoreLibraryName} from {coreDllPath}");
-            }
-        }
+        // Static constructor not needed as NativeLibraryLoader handles library loading
 
         // Graal isolate functions
         [DllImport(CoreLibraryName, CallingConvention = CallingConvention.Cdecl)]

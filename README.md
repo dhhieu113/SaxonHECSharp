@@ -59,9 +59,29 @@ dotnet run
 
 ## Platform Support
 
+The library supports the following platforms:
 - Windows (x64)
-- Linux (x64)
-- macOS (arm64)
+- Linux (x64, arm64)
+- macOS (x64, arm64)
+
+### Native Libraries Structure
+
+The native libraries are organized in platform-specific directories:
+
+```
+bin/Debug/net8.0/runtimes/
+├── win-x64/native/
+│   ├── saxonc-core-ee.dll
+│   └── saxonc-ee.dll
+├── linux-x64/native/
+│   ├── libsaxonc-core-ee.so
+│   └── libsaxonc-ee.so
+└── osx-x64/native/
+    ├── libsaxonc-core-ee.dylib
+    └── libsaxonc-ee.dylib
+```
+
+These native libraries are automatically loaded based on the current platform.
 
 ## License
 
