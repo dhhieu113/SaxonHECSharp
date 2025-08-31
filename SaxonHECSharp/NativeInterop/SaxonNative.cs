@@ -102,6 +102,8 @@ namespace SaxonHECSharp.NativeInterop
             // Try with lib prefix (Linux/macOS convention)
             string candidate2 = Path.Combine(nativeDir, $"lib{libraryName}{GetExtension()}");
 
+
+
             if (File.Exists(candidate1))
                 return LoadLibraryCrossPlatform(candidate1);
 
@@ -135,36 +137,29 @@ namespace SaxonHECSharp.NativeInterop
             throw new PlatformNotSupportedException("Unsupported platform");
         }
 
-        private static string GetLibraryFileName(string library)
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                return $"{library}.dll";
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                return $"lib{library}.so";
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                return $"lib{library}.dylib";
-
-            throw new PlatformNotSupportedException("Unsupported platform");
-        }
-
         private static IntPtr LoadLibraryCrossPlatform(string path)
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 return LoadLibrary(path);
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
-                RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                return dlopen(path, RTLD_NOW);
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
                 return dlopen(path, RTLD_NOW);
 
             throw new PlatformNotSupportedException();
         }
 
+
         // Windows
         [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern IntPtr LoadLibrary(string lpFileName);
 
-        // Linux / macOS
         private const int RTLD_NOW = 2;
-        [DllImport("libdl")]
+
+        [DllImport("libdl.so.2")]
         private static extern IntPtr dlopen(string fileName, int flags);
+
+        [DllImport("libdl.so.2")]
+        private static extern IntPtr dlerror();
     }
 }
