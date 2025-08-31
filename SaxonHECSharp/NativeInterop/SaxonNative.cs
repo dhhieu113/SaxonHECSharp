@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace SaxonHECSharp.NativeInterop
@@ -16,24 +17,21 @@ namespace SaxonHECSharp.NativeInterop
         {
             try
             {
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                Console.Error.WriteLine($"Checking Saxon libraries in: {Path.Combine(baseDir, "runtimes", GetRuntimeIdentifier(), "native")}");
+
                 // Load core library first
                 _coreHandle = LoadLibraryFromRuntimes(CoreLibraryName);
                 if (_coreHandle == IntPtr.Zero)
                 {
-                    int err = Marshal.GetLastWin32Error();
-                    throw new DllNotFoundException(
-                        $"Failed to load {CoreLibraryName} from runtimes folder (error {err})"
-                    );
+                    throw new DllNotFoundException($"Failed to load {CoreLibraryName} from runtimes folder");
                 }
 
                 // Load Saxon library
                 _libraryHandle = LoadLibraryFromRuntimes(LibraryName);
                 if (_libraryHandle == IntPtr.Zero)
                 {
-                    int err = Marshal.GetLastWin32Error();
-                    throw new DllNotFoundException(
-                        $"Failed to load {LibraryName} from runtimes folder (error {err})"
-                    );
+                    throw new DllNotFoundException($"Failed to load {LibraryName} from runtimes folder");
                 }
             }
             catch (Exception ex)
@@ -97,16 +95,93 @@ namespace SaxonHECSharp.NativeInterop
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
             string nativeDir = Path.Combine(baseDir, "runtimes", rid, "native");
 
-            // Try without lib prefix
-            string candidate1 = Path.Combine(nativeDir, $"{libraryName}{GetExtension()}");
-            // Try with lib prefix (Linux/macOS convention)
-            string candidate2 = Path.Combine(nativeDir, $"lib{libraryName}{GetExtension()}");
+            if (!Directory.Exists(nativeDir))
+            {
+                Console.Error.WriteLine($"Native runtime dir not found: {nativeDir}");
+                return IntPtr.Zero;
+            }
 
-            if (File.Exists(candidate1))
-                return LoadLibraryCrossPlatform(candidate1);
+            string ext = GetExtension();
 
-            if (File.Exists(candidate2))
-                return LoadLibraryCrossPlatform(candidate2);
+            // Candidates to try in order:
+            // 1) {libraryName}{ext}                 -> saxonc-core-ee.so
+            // 2) lib{libraryName}{ext}              -> libsaxonc-core-ee.so
+            // 3) any file starting with lib{libraryName} and extension -> libsaxonc-core-ee*.so (versioned)
+            var candidates = new[]
+            {
+                Path.Combine(nativeDir, $"{libraryName}{ext}"),
+                Path.Combine(nativeDir, $"lib{libraryName}{ext}")
+            }.ToList();
+
+            // add versioned matches: lib{libraryName}*{ext}
+            try
+            {
+                string globPattern = $"lib{libraryName}*{ext}";
+                var matched = Directory.GetFiles(nativeDir, globPattern);
+                // Ensure the exact ones are not duplicated
+                candidates.AddRange(matched.Where(p => !candidates.Contains(p)));
+            }
+            catch (Exception globEx)
+            {
+                // ignore glob errors, but log
+                Console.Error.WriteLine($"Error while globbing for {libraryName} in {nativeDir}: {globEx.Message}");
+            }
+
+            Console.Error.WriteLine($"Attempting to load {libraryName} from {nativeDir}");
+            foreach (var cand in candidates)
+            {
+                try
+                {
+                    if (File.Exists(cand))
+                    {
+                        var fi = new FileInfo(cand);
+                        Console.Error.WriteLine($"Found library: {Path.GetFileName(cand)}");
+                        Console.Error.WriteLine($"  Size: {fi.Length} bytes");
+                        Console.Error.WriteLine($"  Last Write Time: {fi.LastWriteTime}");
+                        Console.Error.WriteLine($"  Permissions: {GetFilePermissions(cand)}");
+
+                        // Try loading with NativeLibrary.Load
+                        try
+                        {
+                            IntPtr handle = NativeLibrary.Load(cand);
+                            Console.Error.WriteLine($"Loaded {cand} (handle 0x{handle.ToString("x")})");
+                            return handle;
+                        }
+                        catch (Exception loadEx)
+                        {
+                            Console.Error.WriteLine($"NativeLibrary.Load failed for {cand}: {loadEx.Message}");
+                            // continue to next candidate
+                        }
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine($"Candidate not found: {cand}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"Error checking candidate {cand}: {ex}");
+                }
+            }
+
+            // As a last resort, try letting the runtime resolve by name (no path) - might work if user put in LD_LIBRARY_PATH
+            try
+            {
+                string probeName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                    ? $"{libraryName}{ext}"
+                    : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+                        ? $"lib{libraryName}{ext}"
+                        : $"lib{libraryName}{ext}";
+
+                Console.Error.WriteLine($"Attempting NativeLibrary.Load by name: {probeName}");
+                IntPtr h = NativeLibrary.Load(probeName);
+                Console.Error.WriteLine($"Loaded by name {probeName} (handle 0x{h.ToString("x")})");
+                return h;
+            }
+            catch (Exception nameLoadEx)
+            {
+                Console.Error.WriteLine($"NativeLibrary.Load by name failed: {nameLoadEx.Message}");
+            }
 
             return IntPtr.Zero;
         }
@@ -135,32 +210,19 @@ namespace SaxonHECSharp.NativeInterop
             throw new PlatformNotSupportedException("Unsupported platform");
         }
 
-        private static IntPtr LoadLibraryCrossPlatform(string path)
+        private static string GetFilePermissions(string path)
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                return LoadLibraryWindows(path);
-
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                return dlopen_linux(path, RTLD_NOW);
-
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                return dlopen_osx(path, RTLD_NOW);
-
-            throw new PlatformNotSupportedException();
+            try
+            {
+                var fi = new FileInfo(path);
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                    return $"{fi.Attributes}";
+                // on Unix-like, try to run stat-ish information via FileInfo/Unix file mode
+                return new System.Text.StringBuilder()
+                    .Append(File.GetAttributes(path))
+                    .ToString();
+            }
+            catch { return "<unknown>"; }
         }
-
-        // Windows
-        [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
-        private static extern IntPtr LoadLibraryWindows(string lpFileName);
-
-        // Linux
-        private const int RTLD_NOW = 2;
-
-        [DllImport("libdl.so.2", SetLastError = true)]
-        private static extern IntPtr dlopen_linux(string fileName, int flags);
-
-        // macOS
-        [DllImport("libdl.dylib", SetLastError = true)]
-        private static extern IntPtr dlopen_osx(string fileName, int flags);
     }
 }
