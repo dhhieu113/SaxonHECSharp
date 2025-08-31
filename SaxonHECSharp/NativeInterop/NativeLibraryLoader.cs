@@ -1,109 +1,87 @@
-using System;
-using System.IO;
 using System.Reflection;
-usi        /// <summary>
-        /// Set a custom DllImport resolver for an assembly
-        /// </summary>
-        public static void SetDllImportResolver(Assembly assembly)
-        {
-            NativeLibrary.SetDllImportResolver(assembly, LoadLibrary);
-        }
-        
-        /// <summary>
-        /// Load a native library
-        /// </summary>untime.InteropServices;
-using System.Collections.Generic;
-using System.Linq;
+using System.Runtime.InteropServices;
+using System.Reflection;
 
 namespace SaxonHECSharp.NativeInterop
 {
     internal static class NativeLibraryLoader
     {
-        [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Ansi)]
-        private static extern IntPtr LoadLibrary([MarshalAs(UnmanagedType.LPStr)] string lpFileName);
-        
-        [DllImport("libdl.so.2", EntryPoint = "dlopen")]
-        private static extern IntPtr LoadLibraryPosix([MarshalAs(UnmanagedType.LPStr)] string fileName, int flags);
-        
-        [DllImport("libdl.dylib", EntryPoint = "dlopen")]
-        private static extern IntPtr LoadLibraryMac([MarshalAs(UnmanagedType.LPStr)] string fileName, int flags);
-        
-        // Define a resolver delegate to match the expected signature
-        public delegate IntPtr DllImportResolver(string libraryName, Assembly assembly, DllImportSearchPath? searchPath);
-        
-        // Dictionary to store resolvers
-        private static readonly System.Collections.Generic.Dictionary<Assembly, DllImportResolver> Resolvers = 
-            new System.Collections.Generic.Dictionary<Assembly, DllImportResolver>();
+        public const string CoreLibraryName = "saxonc-core-ee";
+        public const string LibraryName = "saxonc-ee";
+        private static IntPtr _coreLibraryHandle;
+        private static IntPtr _libraryHandle;
 
-        private static IntPtr LoadLibrary(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
+        static NativeLibraryLoader()
         {
-            string rid = "";
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                rid = "win-" + RuntimeInformation.ProcessArchitecture.ToString().ToLower();
-                libraryName = $"{libraryName}.dll";
-            }
-            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            {
-                rid = "linux-" + RuntimeInformation.ProcessArchitecture.ToString().ToLower();
-                libraryName = $"lib{libraryName}.so";
-            }
-            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                rid = "osx-" + RuntimeInformation.ProcessArchitecture.ToString().ToLower();
-                libraryName = $"lib{libraryName}.dylib";
-            }
-
-            if (!string.IsNullOrEmpty(rid))
-            {
-                string nugetFallBackPath = Path.Combine(AppContext.BaseDirectory, "runtimes", rid, "native", libraryName);
-                if (File.Exists(nugetFallBackPath))
-                {
-                    if (NativeLibrary.TryLoad(nugetFallBackPath, out IntPtr handle))
-                    {
-                        return handle;
-                    }
-                }
-            }
-
-            // Fallback to default loading mechanism
-            return NativeLibrary.Load(libraryName, assembly, searchPath);
+            // Register our custom library resolver
+            NativeLibrary.SetDllImportResolver(typeof(NativeLibraryLoader).Assembly, ResolveLibrary);
+            
+            // Load the core library first
+            LoadCoreLibrary();
         }
-            
-        /// <summary>
-        /// Set a custom DllImport resolver for an assembly
-        /// </summary>
-        public static void SetDllImportResolver(Assembly assembly, DllImportResolver resolver)
+
+        private static void LoadCoreLibrary()
         {
-            Resolvers[assembly] = resolver;
+            string rid = GetRuntimeIdentifier();
+            string runtimePath = Path.Combine(
+                AppDomain.CurrentDomain.BaseDirectory,
+                "runtimes",
+                rid,
+                "native",
+                GetLibraryFileName(CoreLibraryName));
+
+            if (!NativeLibrary.TryLoad(runtimePath, out _coreLibraryHandle))
+            {
+                throw new DllNotFoundException($"Failed to load native core library: {CoreLibraryName}");
+            }
         }
-        
-        /// <summary>
-        /// Load a native library
-        /// </summary>
-        public static IntPtr Load(string libraryName)
+
+        private static IntPtr ResolveLibrary(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
         {
-            IntPtr handle = IntPtr.Zero;
-            
+            if (libraryName != LibraryName)
+                return IntPtr.Zero;
+
+            if (_libraryHandle != IntPtr.Zero)
+                return _libraryHandle;
+
+            string rid = GetRuntimeIdentifier();
+            string runtimePath = Path.Combine(
+                AppDomain.CurrentDomain.BaseDirectory,
+                "runtimes",
+                rid,
+                "native",
+                GetLibraryFileName(LibraryName));
+
+            if (!NativeLibrary.TryLoad(runtimePath, out _libraryHandle))
+            {
+                throw new DllNotFoundException($"Failed to load native library: {LibraryName}");
+            }
+
+            return _libraryHandle;
+        }
+
+        private static string GetRuntimeIdentifier()
+        {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                handle = LoadLibrary(libraryName);
-            }
-            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            {
-                handle = LoadLibraryPosix(libraryName, 2); // RTLD_NOW = 2
-            }
-            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                handle = LoadLibraryMac(libraryName, 2); // RTLD_NOW = 2
-            }
-            
-            if (handle == IntPtr.Zero)
-            {
-                throw new DllNotFoundException($"Failed to load native library: {libraryName}");
-            }
-            
-            return handle;
+                return "win-x64";
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "linux-arm64" : "linux-x64";
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "osx-arm64" : "osx-x64";
+
+            throw new PlatformNotSupportedException("Unsupported platform");
+        }
+
+        private static string GetLibraryFileName(string library)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                return $"{library}.dll";
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                return $"lib{library}.so";
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                return $"lib{library}.dylib";
+
+            throw new PlatformNotSupportedException("Unsupported platform");
         }
     }
 }
