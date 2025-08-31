@@ -29,6 +29,53 @@ jobs:
       with:
         dotnet-version: '9.0.x'
 
+    - name: Setup Saxon Libraries
+      shell: pwsh
+      run: |
+        $platform = "${{ matrix.os }}"
+        $downloadUrl = switch ($platform) {
+          "windows-2022" { "https://downloads.saxonica.com/SaxonC/EE/12/SaxonCEE-windows-x86_64-12-8-0.zip" }
+          "ubuntu-24.04" { "https://downloads.saxonica.com/SaxonC/EE/12/SaxonCEE-linux-x86_64-12-8-0.zip" }
+          "macos-14" { "https://downloads.saxonica.com/SaxonC/EE/12/SaxonCEE-macos-aarch64-12-8-0.zip" }
+        }
+        $targetDir = "SaxonHECSharp.Example/bin/${{ matrix.configuration }}/net9.0"
+        $runtimesDir = Join-Path $targetDir "runtimes"
+        
+        # Create directories
+        New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+        
+        # Download and extract
+        $zipPath = "saxon-temp.zip"
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
+        Expand-Archive -Path $zipPath -DestinationPath $targetDir -Force
+        Remove-Item $zipPath
+        
+        # Move files to runtimes directory
+        $rid = switch ($platform) {
+          "windows-2022" { "win-x64" }
+          "ubuntu-24.04" { "linux-x64" }
+          "macos-14" { "osx-arm64" }
+        }
+        
+        $nativeDir = Join-Path $runtimesDir "$rid/native"
+        New-Item -ItemType Directory -Force -Path $nativeDir | Out-Null
+        
+        # Move binaries to the correct location
+        Get-ChildItem -Path "$targetDir/SaxonCEE/bin" -File | 
+        Where-Object { $_.Extension -in '.dll','.so','.dylib' } |
+        ForEach-Object { Move-Item $_.FullName $nativeDir -Force }
+        
+        # Clean up extracted files
+        Remove-Item -Path "$targetDir/SaxonCEE" -Recurse -Force
+        
+        if (Test-Path $nativeDir) {
+          Write-Host "Saxon libraries successfully set up in $nativeDir"
+          Get-ChildItem $nativeDir
+        } else {
+          Write-Error "Failed to set up Saxon libraries"
+          exit 1
+        }
+
     - name: Restore dependencies
       run: dotnet restore
       
