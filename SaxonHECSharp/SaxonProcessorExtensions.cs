@@ -1,3 +1,5 @@
+using System.Threading.Tasks;
+
 namespace SaxonHECSharp
 {
     public static class SaxonProcessorExtensions
