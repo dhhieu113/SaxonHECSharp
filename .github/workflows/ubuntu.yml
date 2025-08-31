@@ -1,0 +1,113 @@
+name: Ubuntu CI - SaxonHECSharp
+
+on:
+  push:
+    branches: [ master, main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Setup Saxon Libraries
+      shell: pwsh
+      run: |
+        $downloadUrl = "https://downloads.saxonica.com/SaxonC/EE/12/SaxonCEE-linux-x86_64-12-8-0.zip"
+        $targetDir = "SaxonHECSharp.Example/bin/Release/net9.0"
+        $runtimesDir = Join-Path $targetDir "runtimes"
+        $tempDir = "saxon-temp"
+        
+        # Create directories
+        New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+        New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
+        
+        Write-Host "Downloading Saxon from $downloadUrl"
+        # Download and extract to temp directory first
+        $zipPath = "saxon-temp.zip"
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
+        Expand-Archive -Path $zipPath -DestinationPath $tempDir -Force
+        Remove-Item $zipPath
+        
+        # Move files to runtimes directory
+        $nativeDir = Join-Path $runtimesDir "linux-x64/native"
+        New-Item -ItemType Directory -Force -Path $nativeDir | Out-Null
+        
+        Write-Host "Looking for Saxon libraries in extracted contents..."
+        # Find and copy library files recursively
+        Get-ChildItem -Path $tempDir -Recurse -File | 
+        Where-Object { $_.Extension -in '.so' } | 
+        ForEach-Object { 
+            Write-Host "Found library: $($_.FullName)"
+            Copy-Item $_.FullName $nativeDir -Force 
+        }
+        
+        # Set executable permissions
+        Get-ChildItem -Path $nativeDir -File | ForEach-Object {
+            Write-Host "Setting executable permission for: $($_.FullName)"
+            chmod +x $_.FullName
+        }
+        
+        # Clean up extracted files
+        Remove-Item -Path $tempDir -Recurse -Force
+        
+        # Verify setup
+        $libFiles = Get-ChildItem $nativeDir
+        if ($libFiles.Count -gt 0) {
+            Write-Host "Saxon libraries successfully set up in $nativeDir"
+            $libFiles | ForEach-Object { 
+                Write-Host "Found: $($_.Name)"
+                ls -l $_.FullName
+            }
+        } else {
+            Write-Error "No library files were found and copied"
+            exit 1
+        }
+
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build Solution
+      run: dotnet build SaxonHECSharp.sln --configuration Release
+
+    - name: Build Example Project
+      shell: pwsh
+      id: build-example
+      run: |
+        # Verify Saxon library exists and is accessible
+        $nativeLibPath = "SaxonHECSharp.Example/bin/Release/net9.0/runtimes/linux-x64/native"
+        
+        Write-Host "Checking Saxon libraries in: ${nativeLibPath}"
+        if (Test-Path -Path $nativeLibPath) {
+            Get-ChildItem -Path $nativeLibPath | ForEach-Object {
+                Write-Host "Found library: $($_.Name)"
+                Write-Host "  Size: $($_.Length) bytes"
+                Write-Host "  Last Write Time: $($_.LastWriteTime)"
+                Write-Host "  Permissions:"
+                ls -l $_.FullName
+            }
+        } else {
+            Write-Error "Native library directory not found: ${nativeLibPath}"
+            exit 1
+        }
+        
+        # Set LD_LIBRARY_PATH for Linux
+        $Env:LD_LIBRARY_PATH = $nativeLibPath
+        Write-Host "Set LD_LIBRARY_PATH to: $Env:LD_LIBRARY_PATH"
+        
+        dotnet run --project SaxonHECSharp.Example/SaxonHECSharp.Example.csproj --configuration Release
