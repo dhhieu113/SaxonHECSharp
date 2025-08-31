@@ -72,6 +72,14 @@ jobs:
             Copy-Item $_.FullName $nativeDir -Force 
         }
         
+        # Set executable permissions on Unix-like systems
+        if ($platform -ne "windows-2022") {
+            Get-ChildItem -Path $nativeDir -File | ForEach-Object {
+                Write-Host "Setting executable permission for: $($_.FullName)"
+                chmod +x $_.FullName
+            }
+        }
+
         # Clean up extracted files
         Remove-Item -Path $tempDir -Recurse -Force
         
@@ -79,7 +87,13 @@ jobs:
         $libFiles = Get-ChildItem $nativeDir
         if ($libFiles.Count -gt 0) {
             Write-Host "Saxon libraries successfully set up in $nativeDir"
-            $libFiles | ForEach-Object { Write-Host "Found: $($_.Name)" }
+            $libFiles | ForEach-Object { 
+                Write-Host "Found: $($_.Name)"
+                # Display file permissions on Unix-like systems
+                if ($platform -ne "windows-2022") {
+                    ls -l $_.FullName
+                }
+            }
         } else {
             Write-Error "No library files were found and copied"
             exit 1
@@ -97,6 +111,23 @@ jobs:
       id: build-example
       shell: pwsh
       run: |
+        # Verify Saxon library exists and is accessible
+        $platform = "${{ matrix.os }}"
+        $targetDir = "SaxonHECSharp.Example/bin/${{ matrix.configuration }}/net9.0"
+        $rid = switch ($platform) {
+          "windows-2022" { "win-x64" }
+          "ubuntu-24.04" { "linux-x64" }
+          "macos-14" { "osx-arm64" }
+        }
+        $nativeDir = Join-Path $targetDir "runtimes/$rid/native"
+        
+        Write-Host "Checking Saxon libraries in $nativeDir:"
+        Get-ChildItem $nativeDir | ForEach-Object {
+            Write-Host "Library: $($_.Name)"
+            Write-Host "Size: $($_.Length) bytes"
+            Write-Host "Last Write Time: $($_.LastWriteTime)"
+        }
+        
         # Set up library path for macOS
         if ("${{ matrix.os }}" -eq "macos-14") {
           $nativeLibPath = Join-Path (Get-Location) "SaxonHECSharp.Example/bin/${{ matrix.configuration }}/net9.0/runtimes/osx-arm64/native"
