@@ -142,14 +142,27 @@ namespace SaxonHECSharp.NativeInterop
 
         private static IntPtr LoadLibraryCrossPlatform(string path)
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                return LoadLibrary(path);
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                return dlopen_linux(path, RTLD_NOW);
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                return dlopen_osx(path, RTLD_NOW);
+            IntPtr handle = IntPtr.Zero;
 
-            throw new PlatformNotSupportedException();
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                handle = LoadLibrary(path);
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                handle = LoadLibraryPosix(path, RTLD_NOW);
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                handle = LoadLibraryMac(path, RTLD_NOW);
+            }
+
+            if (handle == IntPtr.Zero)
+            {
+                throw new DllNotFoundException($"Failed to load native library: {path}");
+            }
+
+            return handle;
         }
 
 
@@ -158,22 +171,13 @@ namespace SaxonHECSharp.NativeInterop
         private static extern IntPtr LoadLibrary(string lpFileName);
 
         private const int RTLD_NOW = 2;
+        private const int RTLD_GLOBAL = 0x100;
 
-        private static string GetLibDl()
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                return "kernel32"; // Windows
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                return "libdl.so.2"; // Linux
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                return "/usr/lib/libSystem.dylib"; // macOS
-            throw new PlatformNotSupportedException();
-        }
+        [DllImport("libdl.so.2", EntryPoint = "dlopen")]
+        private static extern IntPtr LoadLibraryPosix([MarshalAs(UnmanagedType.LPStr)] string fileName, int flags);
 
-        [DllImport("libSystem.dylib", EntryPoint = "dlopen")] // fallback for macOS
-        private static extern IntPtr dlopen_osx(string fileName, int flags);
+        [DllImport("libdl.dylib", EntryPoint = "dlopen")]
+        private static extern IntPtr LoadLibraryMac([MarshalAs(UnmanagedType.LPStr)] string fileName, int flags);
 
-        [DllImport("libdl.so.2", EntryPoint = "dlopen")] // fallback for Linux
-        private static extern IntPtr dlopen_linux(string fileName, int flags);
     }
 }

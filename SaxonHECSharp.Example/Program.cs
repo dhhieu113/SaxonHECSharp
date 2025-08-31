@@ -1,7 +1,7 @@
-﻿using System;
+﻿using SaxonHECSharp;
+using System;
 using System.IO;
 using System.Threading.Tasks;
-using SaxonHECSharp;
 
 class Program
 {
@@ -79,7 +79,8 @@ class Program
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"✗ Error transforming {xmlFile}: {ex.Message}");
+            var exOrigin = ex.InnerException ?? ex;
+            Console.WriteLine($"✗ Error transforming {xmlFile}: {exOrigin.Message}");
         }
     }
 }
