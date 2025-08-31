@@ -88,7 +88,11 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
       
-    - name: Build
+    - name: Build Solution
+      run: dotnet build SaxonHECSharp.sln --configuration ${{ matrix.configuration }}
+
+    - name: Build Example Project
+      working-directory: SaxonHECSharp.Example
       run: dotnet build --configuration ${{ matrix.configuration }}
 
     - name: Run tests
@@ -96,7 +100,9 @@ jobs:
 
     - name: Run Example Project
       working-directory: SaxonHECSharp.Example
-      run: dotnet run --configuration ${{ matrix.configuration }}
+      run: |
+        dotnet build --configuration ${{ matrix.configuration }}
+        dotnet run --configuration ${{ matrix.configuration }}
 
     - name: Collect native libraries
       shell: bash
