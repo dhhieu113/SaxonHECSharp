@@ -147,8 +147,8 @@ namespace SaxonHECSharp.NativeInterop
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                string versioned = Path.Combine(nativeDir, $"lib{libraryName}.so.12.8.0");
-                string soname = Path.Combine(nativeDir, $"lib{libraryName}.so.12");
+                string versioned = Path.Combine(nativeDir, $"lib{libraryName}.so.12.8.0.dylib");
+                string soname = Path.Combine(nativeDir, $"lib{libraryName}.so.12.dylib");
                 try
                 {
                     var ln = new System.Diagnostics.ProcessStartInfo
