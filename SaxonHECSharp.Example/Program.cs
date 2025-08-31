@@ -81,6 +81,7 @@ class Program
         {
             var exOrigin = ex.InnerException ?? ex;
             Console.WriteLine($"✗ Error transforming {xmlFile}: {exOrigin.Message}");
+            throw;
         }
     }
 }
