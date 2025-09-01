@@ -46,16 +46,14 @@ jobs:
         
         # Move files to runtimes directory
         Write-Host "Looking for Saxon libraries in extracted contents..."
-        # Find and copy library files recursively
-        $libDirs = Get-ChildItem -Path $tempDir -Recurse -Directory | Where-Object { $_.Name -eq "lib" }
+        # Find and copy bin files recursively
+        $binDirs = Get-ChildItem -Path $tempDir -Recurse -Directory | Where-Object { $_.Name -eq "bin" }
 
-        foreach ($libDir in $libDirs) {
-            Write-Host "Copying libraries from: $($libDir.FullName)"
-            Get-ChildItem -Path $libDir.FullName -Recurse -File | ForEach-Object {
-                if ($_.Extension -ne ".cmake") {
-                    Write-Host "Found library: $($_.FullName)"
-                    Copy-Item $_.FullName $nativeDir -Force
-                }
+        foreach ($binDir in $binDirs) {
+            Write-Host "Copying libraries from: $($binDir.FullName)"
+            Get-ChildItem -Path $binDir.FullName -Recurse -File | ForEach-Object {
+                Write-Host "Found library: $($_.FullName)"
+                Copy-Item $_.FullName $nativeDir -Force
             }
         }
         

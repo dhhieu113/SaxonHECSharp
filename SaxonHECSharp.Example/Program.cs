@@ -12,7 +12,11 @@ class Program
         // Setup test cases
         var testCases = new[]
         {
-            ("books.xml", "books.xsl", "books_output.html"),
+            ("books.xml", "books.xsl", "books_output.html")
+        };
+
+        var testDataCases = new[]
+        {
             ("catalog.xml", "identity.xsl", "catalog_output.xml"),
             ("example.xml", "example.xsl", "example_output.html"),
             ("family.xml", "test.xsl", "family_output.xml"),
@@ -35,6 +39,13 @@ class Program
                     Console.WriteLine($"\nTesting transformation: {xml} with {xsl}");
                     await RunTransform(xml, xsl);
                 }
+
+                Console.WriteLine("Running all test data cases...\n");
+                foreach (var (xml, xsl, _) in testCases)
+                {
+                    Console.WriteLine($"\nTesting data transformation: {xml} with {xsl}");
+                    await RunTransform($"test-data/{xml}", $"test-data/{xsl}");
+                }
             }
         }
         catch (Exception ex)
@@ -51,8 +62,7 @@ class Program
         try
         {
             // Initialize the Saxon processor
-            using var processor = new SaxonProcessor();
-            var xsltProc = processor.CreateXsltProcessor();
+            using var processor = new SaxonHE();
 
             // Get paths to files
             var baseDir = AppContext.BaseDirectory;
@@ -65,10 +75,9 @@ class Program
             Console.WriteLine($"XSLT: {xslFile}");
 
             // Compile the XSLT stylesheet 
-            xsltProc.CompileStylesheet(xsltPath);
 
             // Perform the transformation
-            if (xsltProc.Transform(xmlPath, outputPath))
+            if (processor.Transform(xmlPath, xsltPath, outputPath))
             {
                 Console.WriteLine($"✓ Transformation successful - Output: {outputName}");
             }
