@@ -92,4 +92,4 @@ jobs:
         $Env:LD_LIBRARY_PATH = $nativeLibPath
         Write-Host "Set LD_LIBRARY_PATH to: $Env:LD_LIBRARY_PATH"
         
-        dotnet run --project SaxonHECSharp.Example/SaxonHECSharp.Example.csproj --configuration Release --runtime linux-musl-x64
+        dotnet run --project SaxonHECSharp.Example/SaxonHECSharp.Example.csproj --configuration Release
