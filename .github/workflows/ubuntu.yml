@@ -1,4 +1,4 @@
-name: Alpine CI - SaxonHECSharp
+name: Alpine Ubuntu CI - SaxonHECSharp
 
 on:
   push:
@@ -34,7 +34,7 @@ jobs:
       run: |
         $downloadUrl = "https://downloads.saxonica.com/SaxonC/EE/12/SaxonCEE-linux-x86_64-12-8-0.zip"
         $targetDir = "SaxonHECSharp/runtimes"
-        $nativeDir = Join-Path $targetDir "linux-x64/native"
+        $nativeDir = Join-Path $targetDir "linux-musl-x64/native"
         $tempDir = "saxon-temp"
     
         # Create directories
