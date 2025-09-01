@@ -7,7 +7,7 @@
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
 		<!-- Multi-platform support -->
-		<RuntimeIdentifiers>win-x64;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
+		<RuntimeIdentifiers>win-x64;linux-x64;linux-musl-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
 
 		<!-- NuGet package properties -->
 		<PackageId>SaxonHECSharp</PackageId>
@@ -18,19 +18,6 @@
 		<!-- Native library properties -->
 		<IncludeBuildOutput>true</IncludeBuildOutput>
 		<SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-	</PropertyGroup>
-
-	<!-- Define platform-specific constants -->
-	<PropertyGroup Condition="'$(RuntimeIdentifier)'=='win-x64'">
-		<DefineConstants>WINDOWS</DefineConstants>
-	</PropertyGroup>
-
-	<PropertyGroup Condition="'$(RuntimeIdentifier)'=='osx-x64' Or '$(RuntimeIdentifier)'=='osx-arm64'">
-		<DefineConstants>OSX</DefineConstants>
-	</PropertyGroup>
-
-	<PropertyGroup Condition="'$(RuntimeIdentifier)'=='linux-x64' Or '$(RuntimeIdentifier)'=='linux-arm64'">
-		<DefineConstants>LINUX</DefineConstants>
 	</PropertyGroup>
 
 	<ItemGroup>

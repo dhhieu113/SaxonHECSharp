@@ -70,7 +70,7 @@ jobs:
       run: dotnet restore
       
     - name: Build Solution
-      run: dotnet build SaxonHECSharp.sln --configuration Release --runtime linux-musl-x64
+      run: dotnet build SaxonHECSharp.sln --configuration Release
 
     - name: Build Example Project
       shell: pwsh
