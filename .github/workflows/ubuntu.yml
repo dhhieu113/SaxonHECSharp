@@ -34,38 +34,45 @@ jobs:
       run: |
         $downloadUrl = "https://downloads.saxonica.com/SaxonC/EE/12/SaxonCEE-linux-x86_64-12-8-0.zip"
         $targetDir = "SaxonHECSharp/runtimes"
-        $nativeDir = Join-Path $targetDir "linux-musl-x64/native"
+        $nativeDir = Join-Path $targetDir "linux-x64/native"
         $tempDir = "saxon-temp"
-        
+    
         # Create directories
         New-Item -ItemType Directory -Force -Path $nativeDir | Out-Null
         New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
-        
+    
         Write-Host "Downloading Saxon from $downloadUrl"
         $zipPath = "saxon-temp.zip"
         Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
         Expand-Archive -Path $zipPath -DestinationPath $tempDir -Force
         Remove-Item $zipPath
-        
-        Write-Host "Looking for Saxon libraries in extracted contents..."
-        $binDirs = Get-ChildItem -Path $tempDir -Recurse -Directory | Where-Object { $_.Name -eq "bin" }
-        foreach ($binDir in $binDirs) {
-            Get-ChildItem -Path $binDir.FullName -Recurse -File | Copy-Item -Destination $nativeDir -Force
+    
+        Write-Host "Looking for 'bin' and 'lib' directories..."
+        $folders = Get-ChildItem -Path $tempDir -Recurse -Directory | Where-Object { $_.Name -in 'bin','lib' }
+
+        foreach ($folder in $folders) {
+            Write-Host "Copying libraries from: $($folder.FullName)"
+            Get-ChildItem -Path $folder.FullName -Recurse -File | ForEach-Object {
+                Write-Host "Found library: $($_.FullName)"
+                Copy-Item $_.FullName -Destination $nativeDir -Force
+            }
         }
-        $libDirs = Get-ChildItem -Path $tempDir -Recurse -Directory | Where-Object { $_.Name -eq "lib" }
-        foreach ($libDir in $libDirs) {
-            Get-ChildItem -Path $libDir.FullName -Recurse -File | Copy-Item -Destination $nativeDir -Force
-        }
-        
+    
+        # Set executable permissions
         Get-ChildItem -Path $nativeDir -File | ForEach-Object { chmod +x $_.FullName }
+    
+        # Clean up extracted files
         Remove-Item -Path $tempDir -Recurse -Force
-        
+    
+        # Verify setup
         $libFiles = Get-ChildItem $nativeDir
         if ($libFiles.Count -eq 0) {
             Write-Error "No library files were found and copied"
             exit 1
+        } else {
+            Write-Host "Saxon libraries successfully set up in $nativeDir:"
+            $libFiles | ForEach-Object { Write-Host $_.Name }
         }
-
     - name: Restore dependencies
       run: dotnet restore
       
