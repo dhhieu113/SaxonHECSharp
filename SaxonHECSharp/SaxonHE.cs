@@ -24,11 +24,47 @@ public class SaxonHE : IDisposable
 
     private string GetRuntimeIdentifier()
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return "win-x64";
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return "win-x64";
+
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "linux-arm64" : "linux-x64";
+        {
+            string arch = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64" : "x64";
+
+            // Detect musl vs glibc
+            bool isMusl = false;
+            try
+            {
+                // ldd --version returns musl or glibc info
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "ldd",
+                    Arguments = "--version",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false
+                };
+                using var process = System.Diagnostics.Process.Start(psi);
+                string output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
+                process.WaitForExit();
+
+                if (output.Contains("musl"))
+                    isMusl = true;
+            }
+            catch
+            {
+                // fallback: assume glibc
+            }
+
+            return isMusl ? $"linux-musl-{arch}" : $"linux-{arch}";
+        }
+
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "osx-arm64" : "osx-x64";
+        {
+            string arch = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64" : "x64";
+            return $"osx-{arch}";
+        }
+
         throw new PlatformNotSupportedException("Unsupported platform");
     }
 
