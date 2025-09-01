@@ -70,9 +70,10 @@ jobs:
             Write-Error "No library files were found and copied"
             exit 1
         } else {
-            Write-Host "Saxon libraries successfully set up in $nativeDir:"
+            Write-Host "Saxon libraries successfully set up in ${nativeDir}:"
             $libFiles | ForEach-Object { Write-Host $_.Name }
         }
+
     - name: Restore dependencies
       run: dotnet restore
       
