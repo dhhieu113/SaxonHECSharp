@@ -59,6 +59,19 @@ jobs:
                 Copy-Item $_.FullName $nativeDir -Force
             }
         }
+
+        # Find and copy library files recursively
+        $libDirs = Get-ChildItem -Path $tempDir -Recurse -Directory | Where-Object { $_.Name -eq "lib" }
+
+        foreach ($libDir in $libDirs) {
+            Write-Host "Copying .dylib libraries from: $($libDir.FullName)"
+            
+            # Copy only .dylib files
+            Get-ChildItem -Path $libDir.FullName -Recurse -File -Filter "*.dylib" | ForEach-Object {
+                Write-Host "Found library: $($_.FullName)"
+                Copy-Item $_.FullName $nativeDir -Force
+            }
+        }
         
         # Set executable permissions
         Get-ChildItem -Path $nativeDir -File | ForEach-Object {
